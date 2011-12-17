@@ -6,9 +6,9 @@ using namespace boost::spirit;
 using boost::spirit::karma::int_;
 using boost::spirit::karma::lit;
 
-using namespace es3lib;
+using namespace es3;
 
-std::string es3lib::int_to_string(int64_t in)
+std::string es3::int_to_string(int64_t in)
 {
 		char buffer[64];
 		char *ptr = buffer;
@@ -17,7 +17,7 @@ std::string es3lib::int_to_string(int64_t in)
 		return std::string(buffer, ptr-buffer);
 }
 
-void es3lib::append_int_to_string(int64_t in, jstring_t &out)
+void es3::append_int_to_string(int64_t in, jstring_t &out)
 {
 		char buffer[64];
 		char *ptr = buffer;

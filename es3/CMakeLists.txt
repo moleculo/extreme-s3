@@ -2,6 +2,7 @@ PROJECT(es3)
 
 SET(es3_SRCS
 	agenda.cpp
+	base64.cpp
 	common.cpp
 	connection.cpp
 	errors.cpp
@@ -18,4 +19,4 @@ SET(es3_INCLUDES
 INCLUDE_DIRECTORIES(.)
 
 ADD_EXECUTABLE(es3 ${es3_SRCS} ${es3_INCLUDES})
-TARGET_LINK_LIBRARIES(es3 pthread gflags glog boost_filesystem curl)
+TARGET_LINK_LIBRARIES(es3 pthread gflags glog boost_filesystem curl ssl crypto)

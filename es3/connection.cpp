@@ -1,6 +1,8 @@
 #include "connection.h"
 #include <curl/curl.h>
 #include "errors.h"
+#include <openssl/hmac.h>
+#include <iostream>
 
 using namespace es3;
 
@@ -30,18 +32,55 @@ s3_connection::s3_connection(const connection_data &conn_data,
 		std::string header = iter->first + ": " + iter->second;
 		header_list_ = curl_slist_append(header_list_, header.c_str());
 	}
+
+	//Make a 'Date' header
+	time_t rawtime = time (NULL);
+	struct tm * timeinfo = gmtime(&rawtime);
+	char date_header[80] = {0};
+	strftime(date_header, 80, "%a, %d %b %Y %H:%M:%S +0000", timeinfo);
+	header_list_ = curl_slist_append(header_list_,
+									 (std::string("Date: ")+date_header).c_str());
+
+//	header_list_ = curl_slist_append(header_list_,
+//									 "x-amz-date: Sat, 17 Dec 2011 08:25:39 +0000");
+
+	//Signature
+	std::string canonicalizedResource="/"+conn_data.bucket_+path;
+	std::string stringToSign = verb + "\n" +
+		/*Content-MD5 +*/ "\n" +
+		/*Content-Type +*/ "\n" +
+		date_header + "\n" +
+//		/*CanonicalizedAmzHeaders +*/ "\n" +
+		canonicalizedResource;
+
+	std::string sign_res=sign(stringToSign) ;
+
+	std::string auth="Authorization: AWS "+conn_data.api_key_+":"+sign_res;
+	header_list_ = curl_slist_append(header_list_, auth.c_str());
+
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
 
 	std::string url = conn_data.use_ssl_?"https://" : "http://";
-	url.append(conn_data.bucket_).append(".s3.amazonaws.com/");
-	url.append(conn_data.bucket_);
-	if (url.at(url.length()-1)!='/') url.append("/");
+	url.append(conn_data.bucket_).append(".s3.amazonaws.com");
 	url.append(path);
 
 	curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()) | die;
+}
 
-	//s3.amazonaws.com
-//	curl_set
+std::string s3_connection::sign(const std::string &str)
+{
+	if (str.length() >= INT_MAX)
+		throw std::bad_exception();
+
+	const std::string &secret_key = conn_data_.secret_key;
+	char md[EVP_MAX_MD_SIZE]={0};
+	unsigned int md_len=0;
+	HMAC(EVP_sha1(),
+				  secret_key.c_str(),
+				  secret_key.length(),
+				  (const unsigned char*)str.c_str(), str.length(),
+				  (unsigned char*)md, &md_len);
+	return base64_encode(md, md_len);
 }
 
 s3_connection::~s3_connection()

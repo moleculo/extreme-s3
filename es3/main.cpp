@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 	cd.api_key_ = FLAGS_access_key;
 	cd.delete_missing_ = true;
 
-	s3_connection conn(cd, "GET", "/");
+	s3_connection conn(cd, "GET", "/cites.txt");
 	conn.read_fully();
 
 	return 0;

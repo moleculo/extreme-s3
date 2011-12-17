@@ -60,9 +60,12 @@ typedef std::string jstring_t;
 	}
 #endif
 
-namespace es3lib {
+namespace es3 {
 	ES3LIB_PUBLIC std::string int_to_string(int64_t in);
 	ES3LIB_PUBLIC void append_int_to_string(int64_t in, jstring_t &out);
+
+	ES3LIB_PUBLIC std::string base64_encode(const char *, size_t len);
+	ES3LIB_PUBLIC std::string base64_decode(const std::string &s);
 };
 
 #endif // COMMON_H

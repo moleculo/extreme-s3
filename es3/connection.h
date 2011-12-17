@@ -34,6 +34,8 @@ namespace es3 {
 		~s3_connection();
 
 		std::string read_fully();
+	private:
+		std::string sign(const std::string &str);
 	};
 
 }; //namespace es3
