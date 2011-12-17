@@ -1,0 +1,13 @@
+PROJECT(es3)
+
+SET(es3_SRCS
+	main.cpp
+)
+SET(es3_INCLUDES
+	common.h
+)
+
+INCLUDE_DIRECTORIES(.)
+
+ADD_EXECUTABLE(es3 ${es3_SRCS} ${es3_INCLUDES})
+TARGET_LINK_LIBRARIES(es3 pthread)
