@@ -18,3 +18,8 @@ agenda::agenda()
 {
 
 }
+
+void agenda::schedule(sync_task_ptr task)
+{
+
+}

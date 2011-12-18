@@ -3,6 +3,8 @@
 #include "scope_guard.h"
 #include <iostream>
 #include "connection.h"
+#include "agenda.h"
+#include "uploader.h"
 
 using namespace es3;
 #include <curl/curl.h>
@@ -12,7 +14,7 @@ DEFINE_string(secret_key, "", "Secret key");
 DEFINE_bool(do_upload, false, "Do upload");
 DEFINE_bool(delete_missing, false, "Delete missing");
 
-DEFINE_string(sync_dir, "", "Local directory");
+DEFINE_string(sync_dir, ".", "Local directory");
 DEFINE_string(bucket_name, "", "Bucket name");
 DEFINE_string(remote_path, "", "Remote path");
 
@@ -30,12 +32,15 @@ int main(int argc, char **argv)
 	cd.use_ssl_ = false;
 	cd.upload_ = false;
 	cd.bucket_ = FLAGS_bucket_name;
+	cd.local_root_ = FLAGS_sync_dir;
 	cd.secret_key = FLAGS_secret_key;
 	cd.api_key_ = FLAGS_access_key;
 	cd.delete_missing_ = true;
 
-	s3_connection conn(cd, "GET", "/");
-	std::cout<<conn.read_fully()<<std::endl;
+	agenda_ptr ag=agenda::make_new();
+	sync_task_ptr task(new upload_task(ag, FLAGS_sync_dir, cd, "/"));
+	ag->schedule(task);
+	task->operator ()();
 
 	return 0;
 }

@@ -17,6 +17,7 @@ namespace es3 {
 			sCreated = 201,
 			sNotFound = 404,
 			sConflict = 409,
+			sWarnings = 300,
 			sError = 500,
 		};
 

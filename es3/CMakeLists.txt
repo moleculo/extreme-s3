@@ -7,6 +7,8 @@ SET(es3_SRCS
 	connection.cpp
 	errors.cpp
 	main.cpp
+
+	uploader.cpp
 )
 SET(es3_INCLUDES
 	agenda.h
@@ -14,6 +16,7 @@ SET(es3_INCLUDES
 	connection.h
 	errors.h
 	scope_guard.h
+	uploader.h
 
 	boost/threadpool/shutdown_policies.hpp
 	boost/threadpool/detail/future.hpp
@@ -34,4 +37,4 @@ INCLUDE_DIRECTORIES(.)
 
 ADD_EXECUTABLE(es3 ${es3_SRCS} ${es3_INCLUDES})
 TARGET_LINK_LIBRARIES(es3 pthread gflags glog boost_thread
-	boost_filesystem curl ssl crypto)
+	boost_filesystem boost_system curl ssl crypto)

@@ -30,6 +30,7 @@ namespace es3 {
 		bool use_ssl_;
 		std::string bucket_;
 		std::string api_key_, secret_key;
+		std::string local_root_;
 		bool upload_;
 		bool delete_missing_;
 	};

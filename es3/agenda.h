@@ -11,7 +11,7 @@ namespace es3 {
 	public:
 		virtual ~sync_task() {}
 		virtual result_code_t operator()() = 0;
-		virtual std::string describe()=0;
+		virtual std::string describe() const=0;
 	};
 	typedef boost::shared_ptr<sync_task> sync_task_ptr;
 
@@ -19,11 +19,11 @@ namespace es3 {
 	{
 		agenda();
 		std::vector<sync_task_ptr> scheduled_;
-
 		std::vector< std::pair<sync_task_ptr, result_code_t> > results_;
 	public:
 		static boost::shared_ptr<agenda> make_new();
 
+		void schedule(sync_task_ptr task);
 	};
 
 	typedef boost::shared_ptr<agenda> agenda_ptr;
