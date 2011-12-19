@@ -69,6 +69,7 @@ namespace es3 {
 
 		std::string read_fully();
 		file_map_t list_files(const std::string &prefix);
+		void upload_data(void *addr, size_t size);
 
 	private:
 		std::string sign(const std::string &str);

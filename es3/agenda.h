@@ -3,6 +3,8 @@
 
 #include "common.h"
 #include "errors.h"
+#include "connection.h"
+#include <boost/filesystem.hpp>
 
 namespace es3 {
 
@@ -24,6 +26,11 @@ namespace es3 {
 		static boost::shared_ptr<agenda> make_new();
 
 		void schedule(sync_task_ptr task);
+
+		void schedule_removal(remote_file_ptr file);
+		void schedule_upload(const connection_data &data,
+			const boost::filesystem::path &path, const std::string &remote,
+			const std::string &etag);
 	};
 
 	typedef boost::shared_ptr<agenda> agenda_ptr;

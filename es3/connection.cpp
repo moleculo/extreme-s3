@@ -91,6 +91,8 @@ curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
 //		/*CanonicalizedAmzHeaders +*/ "\n" +
 		canonicalizedResource;
 	std::string sign_res=sign(stringToSign) ;
+	if (sign_res.empty())
+		sign_res.empty();
 
 	std::string auth="Authorization: AWS "+conn_data_.api_key_+":"+sign_res;
 	return curl_slist_append(header_list, auth.c_str());
@@ -102,7 +104,7 @@ std::string s3_connection::sign(const std::string &str)
 		throw std::bad_exception();
 
 	const std::string &secret_key = conn_data_.secret_key;
-	char md[EVP_MAX_MD_SIZE]={0};
+	char md[EVP_MAX_MD_SIZE+1]={0};
 	unsigned int md_len=0;
 	HMAC(EVP_sha1(),
 				  secret_key.c_str(),
@@ -133,6 +135,7 @@ std::string s3_connection::read_fully()
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &res);
 	curl_easy_perform(curl_) | die;
+	//TODO: check error code
 	return res;
 }
 
@@ -183,7 +186,7 @@ file_map_t s3_connection::list_files(const std::string &prefix)
 			break;
 	}
 
-	return res;
+	return std::move(res);
 }
 
 void s3_connection::deconstruct_file(file_map_t &res,
@@ -234,4 +237,37 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	if (cur_pos->find(cur_name)!=cur_pos->end())
 		throw std::bad_exception();
 	(*cur_pos)[cur_name] = fl;
+}
+
+struct read_data
+{
+	const char *buf;
+	size_t off_, total_;
+};
+
+size_t read_func(char *bufptr, size_t size, size_t nitems, void *userp)
+{
+	read_data *data = (read_data*) userp;
+	size_t tocopy = std::min(data->total_-data->off_, size*nitems);
+	if (tocopy!=0)
+	{
+		memcpy(bufptr, data->buf+data->off_, tocopy);
+		data->off_+=tocopy;
+	}
+	return tocopy;
+}
+
+void s3_connection::upload_data(void *addr, size_t size)
+{
+	//Set data
+	set_url("");
+
+	read_data data = {(const char*)addr, 0, size};
+	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
+	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_func);
+	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
+
+	curl_easy_perform(curl_);
 }

@@ -26,6 +26,8 @@
 */
 #include "common.h"
 #include <iostream>
+#include <string>
+#include <vector>
 
 static const std::string base64_chars =
 			 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -37,49 +39,62 @@ static inline bool is_base64(unsigned char c) {
   return (isalnum(c) || (c == '+') || (c == '/'));
 }
 
+
+
+/* Define these if they aren't already in your environment
+ * #define TEXT(x) Lx    //Unicode
+ * #define TCHAR wchar_t //Unicode
+ * #define TCHAR char    //Not unicode
+ * #define TEXT(x) x     //Not unicode
+ * #define DWORD long
+ * #define BYTE unsigned char
+ * They are defined by default in Windows.h
+ */
+
+//Lookup table for encoding
+//If you want to use an alternate alphabet, change the characters here
+const static unsigned char encodeLookup[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const static unsigned char padCharacter = '=';
+std::string base64Encode(const unsigned char *inputBuffer, size_t size)
+{
+		std::basic_string<char> encodedString;
+		encodedString.reserve(((size/3) + (size % 3 > 0)) * 4);
+		uint32_t temp;
+
+		const unsigned char *cursor = inputBuffer;
+		for(size_t idx = 0; idx < size/3; idx++)
+		{
+				temp  = (*cursor++) << 16; //Convert to big endian
+				temp += (*cursor++) << 8;
+				temp += (*cursor++);
+				encodedString.append(1,encodeLookup[(temp & 0x00FC0000) >> 18]);
+				encodedString.append(1,encodeLookup[(temp & 0x0003F000) >> 12]);
+				encodedString.append(1,encodeLookup[(temp & 0x00000FC0) >> 6 ]);
+				encodedString.append(1,encodeLookup[(temp & 0x0000003F)      ]);
+		}
+		switch(size % 3)
+		{
+		case 1:
+				temp  = (*cursor++) << 16; //Convert to big endian
+				encodedString.append(1,encodeLookup[(temp & 0x00FC0000) >> 18]);
+				encodedString.append(1,encodeLookup[(temp & 0x0003F000) >> 12]);
+				encodedString.append(2,padCharacter);
+				break;
+		case 2:
+				temp  = (*cursor++) << 16; //Convert to big endian
+				temp += (*cursor++) << 8;
+				encodedString.append(1,encodeLookup[(temp & 0x00FC0000) >> 18]);
+				encodedString.append(1,encodeLookup[(temp & 0x0003F000) >> 12]);
+				encodedString.append(1,encodeLookup[(temp & 0x00000FC0) >> 6 ]);
+				encodedString.append(1,padCharacter);
+				break;
+		}
+		return encodedString;
+}
+
 std::string es3::base64_encode(const char *str, size_t in_len)
 {
-	unsigned char const* bytes_to_encode = (unsigned char const*) str;
-  std::string ret;
-  size_t i = 0;
-  size_t j = 0;
-  unsigned char char_array_3[3];
-  unsigned char char_array_4[4];
-
-  while (in_len--) {
-	char_array_3[i++] = *(bytes_to_encode++);
-	if (i == 3) {
-	  char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-	  char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-	  char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-	  char_array_4[3] = char_array_3[2] & 0x3f;
-
-	  for(i = 0; (i <4) ; i++)
-		ret += base64_chars[char_array_4[i]];
-	  i = 0;
-	}
-  }
-
-  if (i)
-  {
-	for(j = i; j < 3; j++)
-	  char_array_3[j] = '\0';
-
-	char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-	char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-	char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-	char_array_4[3] = char_array_3[2] & 0x3f;
-
-	for (j = 0; (j < i + 1); j++)
-	  ret += base64_chars[char_array_4[j]];
-
-	while((i++ < 3))
-	  ret += '=';
-
-  }
-
-  return ret;
-
+	return base64Encode((const unsigned char*)str, in_len);
 }
 
 std::string es3::base64_decode(const std::string &encoded_string) {

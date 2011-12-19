@@ -25,6 +25,13 @@ int main(int argc, char **argv)
 	google::SetVersionString("ExtremeS3 0.1");
 	google::ParseCommandLineFlags(&argc, &argv, true);
 
+	if (FLAGS_bucket_name.empty() || FLAGS_access_key.empty() ||
+			FLAGS_secret_key.empty())
+	{
+		printf("Not enough arguments. Use --help for help.\n");
+		return 1;
+	}
+
 	curl_global_init(CURL_GLOBAL_ALL);
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
