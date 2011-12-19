@@ -37,4 +37,4 @@ INCLUDE_DIRECTORIES(.)
 
 ADD_EXECUTABLE(es3 ${es3_SRCS} ${es3_INCLUDES})
 TARGET_LINK_LIBRARIES(es3 pthread gflags glog boost_thread
-	boost_filesystem boost_system curl ssl crypto)
+	boost_filesystem boost_system curl ssl crypto tinyxml)

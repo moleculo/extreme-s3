@@ -48,7 +48,7 @@ result_code_t upload_task::operator()()
 
 	//Retrieve the list of remote files
 	s3_connection conn(to_, "GET", cur_remote_);
-	std::cout << conn.read_fully() << std::endl;
+	conn.list_files("");
 
 	return result_code_t();
 }
@@ -57,4 +57,3 @@ std::string upload_task::describe() const
 {
 	return "Scanning "+from_.file_string();
 }
-
