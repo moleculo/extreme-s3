@@ -9,6 +9,7 @@ SET(es3_SRCS
 	main.cpp
 
 	uploader.cpp
+	sync.cpp
 )
 SET(es3_INCLUDES
 	agenda.h
@@ -17,6 +18,7 @@ SET(es3_INCLUDES
 	errors.h
 	scope_guard.h
 	uploader.h
+	sync.h
 
 	boost/threadpool/shutdown_policies.hpp
 	boost/threadpool/detail/future.hpp

@@ -60,7 +60,7 @@ public:
 		std::size_t size = region.get_size();
 		//Get the address of the mapped region
 
-		VLOG(1) << "Checking upload of " << path_ << " as "
+		VLOG(2) << "Checking upload of " << path_ << " as "
 				  << remote_;
 		if (etag_.empty())
 		{
@@ -98,7 +98,7 @@ public:
 private:
 	void start_upload(const std::string &md5, void *addr, size_t size)
 	{
-		VLOG(0) << "Starting upload of " << path_ << " as "
+		VLOG(2) << "Starting upload of " << path_ << " as "
 				<< remote_ << ", MD5: "<< md5;
 		header_map_t hmap;
 		if (!md5.empty())

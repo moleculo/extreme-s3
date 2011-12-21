@@ -4,7 +4,7 @@
 #include <iostream>
 #include "connection.h"
 #include "agenda.h"
-#include "uploader.h"
+#include "sync.h"
 
 using namespace es3;
 #include <curl/curl.h>
@@ -40,14 +40,14 @@ int main(int argc, char **argv)
 	cd.upload_ = false;
 	cd.bucket_ = FLAGS_bucket_name;
 	cd.local_root_ = FLAGS_sync_dir;
+	cd.remote_root_ = FLAGS_remote_path;
 	cd.secret_key = FLAGS_secret_key;
 	cd.api_key_ = FLAGS_access_key;
 	cd.delete_missing_ = true;
 
 	agenda_ptr ag=agenda::make_new();
-	sync_task_ptr task(new upload_task(ag, FLAGS_sync_dir, cd, "/"));
-	ag->schedule(task);
-	task->operator ()();
+	synchronizer sync(ag, cd);
+	sync.create_schedule();
 
 	return 0;
 }
