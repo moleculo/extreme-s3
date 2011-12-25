@@ -12,14 +12,14 @@ using namespace es3;
 void operator | (const CURLcode &code, const die_t &die)
 {
 	if (code!=CURLE_OK)
-		err(result_code_t::sError) << "curl error: "
-								   << curl_easy_strerror(code);
+		err(errFatal) << "curl error: "
+					  << curl_easy_strerror(code);
 }
 
 void check(const TiXmlDocument &doc)
 {
 	if (doc.Error())
-		err(result_code_t::sError) << doc.ErrorDesc();
+		err(errFatal) << doc.ErrorDesc();
 }
 
 std::string escape(const std::string &str)
@@ -31,13 +31,15 @@ std::string escape(const std::string &str)
 
 s3_connection::s3_connection(const connection_data &conn_data,
 							 const std::string &verb,
-							 const std::string &path,
+							 const std::string &path_raw,
 							 const header_map_t &opts)
 	: curl_(curl_easy_init()), conn_data_(conn_data),
-	  opts_(opts), header_list_(), path_(path)
+	  opts_(opts), header_list_(), path_(path_raw)
 {
 	if (!curl_)
-		err(result_code_t::sError) << "can't init CURL";
+		err(errFatal) << "can't init CURL";
+	if (path_.empty())
+		path_.append("/");
 
 	//Set HTTP verb
 	curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, verb.c_str()) | die;
@@ -52,7 +54,7 @@ s3_connection::s3_connection(const connection_data &conn_data,
 		header_list_ = curl_slist_append(header_list_, header.c_str());
 	}
 
-	header_list_ = authenticate_req(header_list_, verb, path);
+	header_list_ = authenticate_req(header_list_, verb, path_);
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
@@ -78,6 +80,17 @@ curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
 	header_list = curl_slist_append(header_list,
 									 (std::string("Date: ")+date_header).c_str());
 
+	std::string amz_headers;
+	for(auto iter = opts_.begin(); iter!=opts_.end();++iter)
+	{
+		std::string lower_hdr = iter->first;
+		std::transform(lower_hdr.begin(), lower_hdr.end(),
+					   lower_hdr.begin(), ::tolower);
+		if (lower_hdr.find("x-amz-meta")==0)
+			amz_headers.append(lower_hdr).append(":")
+					.append(iter->second).append("\n");
+	}
+
 	//Signature
 	size_t idx = path.find_first_of("?&");
 	std::string canonic = path;
@@ -88,7 +101,7 @@ curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
 		try_get(opts_, "content-md5") + "\n" +
 		try_get(opts_, "content-type") + "\n" +
 		date_header + "\n" +
-//		/*CanonicalizedAmzHeaders +*/ "\n" +
+		amz_headers +
 		canonicalizedResource;
 	std::string sign_res=sign(stringToSign) ;
 	if (sign_res.empty())
@@ -263,9 +276,9 @@ void s3_connection::upload_data(void *addr, size_t size)
 	set_url("");
 
 	read_data data = {(const char*)addr, 0, size};
-	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+//	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(size));
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
 

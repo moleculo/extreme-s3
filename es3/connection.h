@@ -56,8 +56,8 @@ namespace es3 {
 	class s3_connection
 	{
 		CURL *curl_;
+		std::string path_;
 		const connection_data conn_data_;
-		const std::string path_;
 		const header_map_t opts_;
 		struct curl_slist *header_list_;
 	public:

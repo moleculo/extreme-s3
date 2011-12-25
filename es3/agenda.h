@@ -3,25 +3,26 @@
 
 #include "common.h"
 #include "errors.h"
-#include "connection.h"
 #include <boost/filesystem.hpp>
 
 namespace es3 {
+	struct connection_data;
+	struct remote_file;
+	typedef boost::shared_ptr<remote_file> remote_file_ptr;
+	class agenda;
+	typedef boost::shared_ptr<agenda> agenda_ptr;
 
 	class sync_task
 	{
 	public:
 		virtual ~sync_task() {}
-		virtual result_code_t operator()() = 0;
-		virtual std::string describe() const=0;
+		virtual void operator()(agenda_ptr agenda) = 0;
 	};
 	typedef boost::shared_ptr<sync_task> sync_task_ptr;
 
 	class agenda : public boost::enable_shared_from_this<agenda>
 	{
 		agenda();
-		std::vector<sync_task_ptr> scheduled_;
-		std::vector< std::pair<sync_task_ptr, result_code_t> > results_;
 	public:
 		static boost::shared_ptr<agenda> make_new();
 
@@ -32,8 +33,6 @@ namespace es3 {
 			const boost::filesystem::path &path, const std::string &remote,
 			const std::string &etag);
 	};
-
-	typedef boost::shared_ptr<agenda> agenda_ptr;
 
 }; //namespace es3
 

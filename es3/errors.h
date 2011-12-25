@@ -8,20 +8,17 @@ namespace es3 {
 	class die_t {};
 	extern ES3LIB_PUBLIC const die_t die;
 
+	enum code_e
+	{
+		errFatal,
+		errWarn,
+		errNone,
+	};
+
 	class result_code_t
 	{
 	public:
-		enum code_e {
-			sOk = 200,
-			sAccepted = 202,
-			sCreated = 201,
-			sNotFound = 404,
-			sConflict = 409,
-			sWarnings = 300,
-			sError = 500,
-		};
-
-		result_code_t() : code_(sOk), desc_()
+		result_code_t() : code_(errNone), desc_()
 		{
 		}
 
@@ -35,7 +32,7 @@ namespace es3 {
 
 		code_e code() const { return code_; }
 		const std::string& desc() const { return desc_; }
-		bool ok() const {return code_>=sOk && code_<=sCreated;}
+		bool ok() const {return code_==errNone;}
 	private:
 		code_e code_;
 		std::string desc_;
@@ -67,14 +64,14 @@ namespace es3 {
 	  */
 	struct err : public std::stringstream
 	{
-		err(result_code_t::code_e code) : code_(code) {}
+		err(code_e code) : code_(code) {}
 
 		~err()
 		{
 			//Yes, we're throwing from a destructor, but that's OK since
 			//if there's an exception already started then we have other
 			//big problems.
-			if (code_!=result_code_t::sOk)
+			if (code_!=errNone)
 			{
 				boost::throw_exception(es3_exception(
 										   result_code_t(code_, str())));
@@ -82,7 +79,7 @@ namespace es3 {
 		}
 
 	private:
-		result_code_t::code_e code_;
+		code_e code_;
 	};
 
 	inline void operator | (const result_code_t &code, const die_t &)

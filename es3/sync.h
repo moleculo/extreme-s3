@@ -12,7 +12,6 @@ namespace es3 {
 	class synchronizer
 	{
 		agenda_ptr agenda_;
-		boost::filesystem::path from_;
 		connection_data to_;
 		std::string cur_remote_;
 	public:

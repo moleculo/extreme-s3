@@ -16,7 +16,7 @@ void synchronizer::create_schedule()
 	//Retrieve the list of remote files
 	s3_connection conn(to_, "GET", to_.remote_root_);
 	file_map_t remotes = conn.list_files("");
-	process_dir(&remotes, from_, to_.remote_root_);
+	process_dir(&remotes, to_.local_root_, to_.remote_root_);
 }
 
 void synchronizer::process_dir(file_map_t *cur_remote,
@@ -69,13 +69,8 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				agenda_->schedule_upload(to_, dent.path(), new_remote_path, "");
 			else
 			{
-				uint64_t our_size=file_size(dent.path());
-				if (our_size != cur_remote_child->size_)
-					agenda_->schedule_upload(to_,
-											 dent.path(), new_remote_path, "");
-				else
-					agenda_->schedule_upload(to_, dent.path(), new_remote_path,
-											 cur_remote_child->etag_);
+				agenda_->schedule_upload(to_, dent.path(), new_remote_path,
+										 cur_remote_child->etag_);
 			}
 		} else if (dent.status().type()==symlink_file)
 		{

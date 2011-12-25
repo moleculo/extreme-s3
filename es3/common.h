@@ -37,6 +37,7 @@ typedef std::lock_guard<std::recursive_mutex> guard_t;
 #include <glog/logging.h>
 #define VLOG_MACRO(lev) if(VLOG_IS_ON(lev)) VLOG(lev)
 
+#define BOOST_SYSTEM_NO_DEPRECATED
 #undef BOOST_HAS_RVALUE_REFS
 #include <boost/thread.hpp>
 #define BOOST_HAS_RVALUE_REFS
