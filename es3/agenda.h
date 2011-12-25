@@ -28,7 +28,8 @@ namespace es3 {
 
 		void schedule(sync_task_ptr task);
 
-		void schedule_removal(remote_file_ptr file);
+		void schedule_removal(const connection_data &data,
+							  remote_file_ptr file);
 		void schedule_upload(const connection_data &data,
 			const boost::filesystem::path &path, const std::string &remote,
 			const std::string &etag);

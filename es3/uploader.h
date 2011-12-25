@@ -27,9 +27,25 @@ namespace es3 {
 
 		virtual void operator()(agenda_ptr agenda);
 	private:
-		void start_upload(const std::string &md5, void *addr, size_t size,
+		void start_upload(const std::string &md5, const void *addr, size_t size,
 						  bool compressed);
 	};
+
+	class file_deleter : public sync_task
+	{
+		const connection_data conn_;
+		const std::string remote_;
+	public:
+		file_deleter(const connection_data &conn,
+					  const std::string &remote)
+			: conn_(conn), remote_(remote)
+		{
+		}
+
+		virtual void operator()(agenda_ptr agenda);
+	private:
+	};
+
 }; //namespace es3
 
 #endif //UPLOADER_H

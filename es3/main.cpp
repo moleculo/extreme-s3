@@ -16,7 +16,7 @@ DEFINE_bool(delete_missing, false, "Delete missing");
 
 DEFINE_string(sync_dir, ".", "Local directory");
 DEFINE_string(bucket_name, "", "Bucket name");
-DEFINE_string(remote_path, "", "Remote path");
+DEFINE_string(remote_path, "/", "Remote path");
 
 int main(int argc, char **argv)
 {
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 	cd.remote_root_ = FLAGS_remote_path;
 	cd.secret_key = FLAGS_secret_key;
 	cd.api_key_ = FLAGS_access_key;
-	cd.delete_missing_ = true;
+	cd.delete_missing_ = FLAGS_delete_missing;
 
 	agenda_ptr ag=agenda::make_new();
 	synchronizer sync(ag, cd);

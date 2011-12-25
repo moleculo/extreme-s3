@@ -44,7 +44,7 @@ namespace es3 {
 
 	struct remote_file
 	{
-		std::string name_;
+		std::string name_, full_name_;
 		std::string etag_;
 		uint64_t size_;
 
@@ -69,7 +69,7 @@ namespace es3 {
 
 		std::string read_fully();
 		file_map_t list_files(const std::string &prefix);
-		void upload_data(void *addr, size_t size);
+		void upload_data(const void *addr, size_t size);
 
 	private:
 		std::string sign(const std::string &str);

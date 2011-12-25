@@ -58,6 +58,17 @@ void file_uploader::operator()(agenda_ptr agenda)
 	//Create a file mapping.
 	bool compressed = false;
 	file_mapping m_file = std::move(try_compress_and_open(path_, compressed));
+
+	//Check for empty files
+	offset_t sz;
+	boost::interprocess::detail::get_file_size(
+				m_file.get_mapping_handle().handle, sz);
+	if (sz==0)
+	{
+		start_upload("", "", 0, false);
+		return;
+	}
+
 	//Map the whole file in this process
 	mapped_region region(m_file,read_only);
 	void * addr = region.get_address();
@@ -94,7 +105,7 @@ void file_uploader::operator()(agenda_ptr agenda)
 	}
 }
 
-void file_uploader::start_upload(const std::string &md5, void *addr,
+void file_uploader::start_upload(const std::string &md5, const void *addr,
 								 size_t size, bool compressed)
 {
 	VLOG(2) << "Starting upload of " << path_ << " as "
@@ -106,4 +117,13 @@ void file_uploader::start_upload(const std::string &md5, void *addr,
 	hmap["Content-Type"] = "application/x-binary";
 	s3_connection up(conn_, "PUT", remote_, hmap);
 	up.upload_data(addr, size);
+}
+
+
+void file_deleter::operator()(agenda_ptr agenda)
+{
+	VLOG(2) << "Removing " << remote_;
+	header_map_t hmap;
+	s3_connection up(conn_, "DELETE", remote_, hmap);
+	up.read_fully();
 }

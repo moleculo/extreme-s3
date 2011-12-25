@@ -8,11 +8,11 @@ using namespace es3;
 
 //Utility thread pool
 boost::threadpool::pool the_pool(
-#ifdef NDEBUG
+//#ifdef NDEBUG
 	sysconf(_SC_NPROCESSORS_ONLN)+8
-#else
-	1
-#endif
+//#else
+//	1
+//#endif
 );
 
 agenda_ptr agenda::make_new()
@@ -65,7 +65,14 @@ void agenda::schedule_upload(const connection_data &data,
 {
 	sync_task_ptr task(new file_uploader(data, path, remote, etag));
 	agenda_ptr ptr = shared_from_this();
-//	(*task)(ptr);
+	the_pool.schedule(task_executor {task, ptr});
+}
+
+void agenda::schedule_removal(const connection_data &data,
+							  remote_file_ptr file)
+{
+	sync_task_ptr task(new file_deleter(data, file->full_name_));
+	agenda_ptr ptr = shared_from_this();
 	the_pool.schedule(task_executor {task, ptr});
 }
 
@@ -73,8 +80,4 @@ void agenda::schedule(sync_task_ptr task)
 {
 	agenda_ptr ptr = shared_from_this();
 	the_pool.schedule(task_executor {task, ptr});
-}
-
-void agenda::schedule_removal(remote_file_ptr file)
-{
 }

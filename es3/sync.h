@@ -22,6 +22,8 @@ namespace es3 {
 		void process_dir(file_map_t *cur_remote, const
 						 boost::filesystem::path &cur_local,
 						 const std::string &cur_remote_path);
+
+		void del_recursive(const file_map_t &cur);
 	};
 
 }; //namespace es3

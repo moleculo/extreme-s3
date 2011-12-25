@@ -58,6 +58,7 @@ s3_connection::s3_connection(const connection_data &conn_data,
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
+	set_url("");
 }
 
 void s3_connection::set_url(const std::string &args)
@@ -211,7 +212,7 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	std::string cur_name = name;
 
 	file_map_t *cur_pos=&res;
-	remote_file_weak_t cur_parent;
+	remote_file_ptr cur_parent;
 	while(true)
 	{
 		size_t pos=cur_name.find('/');
@@ -230,6 +231,9 @@ void s3_connection::deconstruct_file(file_map_t &res,
 			ptr = remote_file_ptr(new remote_file());
 			ptr->is_dir_ = true;
 			ptr->name_ = component;
+			ptr->full_name_ = cur_parent?
+						(cur_parent->full_name_+"/"+component) :
+						(conn_data_.remote_root_+component);
 			ptr->parent_ = cur_parent;
 			(*cur_pos)[component] = ptr;
 		}
@@ -244,6 +248,7 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	remote_file_ptr fl(new remote_file());
 	fl->is_dir_ = false;
 	fl->name_ = cur_name;
+	fl->full_name_ = conn_data_.remote_root_+name;
 	fl->etag_ = etag;
 	fl->size_ = atoll(size.c_str());
 	fl->parent_ = cur_parent;
@@ -270,7 +275,7 @@ size_t read_func(char *bufptr, size_t size, size_t nitems, void *userp)
 	return tocopy;
 }
 
-void s3_connection::upload_data(void *addr, size_t size)
+void s3_connection::upload_data(const void *addr, size_t size)
 {
 	//Set data
 	set_url("");

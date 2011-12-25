@@ -23,17 +23,19 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 							  const boost::filesystem::path &cur_local,
 							  const std::string &cur_remote_path)
 {
+	file_map_t cur_remote_copy = cur_remote ? *cur_remote : file_map_t();
+
 	for(directory_iterator iter=directory_iterator(cur_local);
 		iter!=directory_iterator(); ++iter)
 	{
 		const directory_entry &dent = *iter;
-		std::string new_remote_path = cur_remote_path+"/"+
+		std::string new_remote_path = cur_remote_path+
 				dent.path().filename().string();
-		remote_file_ptr cur_remote_child;
-		if (cur_remote)
-			cur_remote_child=try_get(*cur_remote,
-									 dent.path().filename().string(),
-									 remote_file_ptr());
+
+		remote_file_ptr cur_remote_child=try_get(
+					cur_remote_copy, dent.path().filename().string(),
+					remote_file_ptr());
+		cur_remote_copy.erase(dent.path().filename().string());
 
 		if (dent.status().type()==directory_file)
 		{
@@ -44,8 +46,8 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				{
 					if (to_.delete_missing_)
 					{
-						agenda_->schedule_removal(cur_remote_child);
-						process_dir(0, dent.path(), new_remote_path);
+						agenda_->schedule_removal(to_, cur_remote_child);
+						process_dir(0, dent.path(), new_remote_path+"/");
 					} else
 					{
 						VLOG(0) << "Local file "<< dent.path() << " "
@@ -56,11 +58,11 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				} else
 				{
 					process_dir(&cur_remote_child->children_,
-								dent.path(), new_remote_path);
+								dent.path(), new_remote_path+"/");
 				}
 			} else
 			{
-				process_dir(0, dent.path(), new_remote_path);
+				process_dir(0, dent.path(), new_remote_path+"/");
 			}
 		} else if (dent.status().type()==regular_file)
 		{
@@ -80,5 +82,19 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 		{
 			VLOG(0) << "Unknown local file "<< dent.path();
 		}
+	}
+
+	if (to_.delete_missing_)
+		del_recursive(cur_remote_copy);
+}
+
+void synchronizer::del_recursive(const file_map_t &cur)
+{
+	for(auto f = cur.begin(); f!=cur.end();++f)
+	{
+		if (f->second->is_dir_)
+			del_recursive(f->second->children_);
+		else
+			agenda_->schedule_removal(to_, f->second);
 	}
 }
