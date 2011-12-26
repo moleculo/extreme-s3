@@ -34,9 +34,6 @@
 #include <mutex>
 typedef std::lock_guard<std::recursive_mutex> guard_t;
 
-#include <glog/logging.h>
-#define VLOG_MACRO(lev) if(VLOG_IS_ON(lev)) VLOG(lev)
-
 #define BOOST_SYSTEM_NO_DEPRECATED
 #undef BOOST_HAS_RVALUE_REFS
 #include <boost/thread.hpp>
@@ -70,6 +67,25 @@ namespace es3 {
 	ES3LIB_PUBLIC std::string trim(const std::string &str);
 
 	ES3LIB_PUBLIC std::string tobinhex(const unsigned char* data, size_t ln);
+
+	class logger
+	{
+		int verbosity_;
+		boost::shared_ptr<std::ostream> stream_;
+	public:
+		ES3LIB_PUBLIC logger(int lvl);
+		ES3LIB_PUBLIC ~logger();
+		ES3LIB_PUBLIC static bool is_log_on(int lvl);
+		ES3LIB_PUBLIC static void set_verbosity(int lvl);
+
+		template<class T> std::ostream& operator << (const T& data)
+		{
+			return (*stream_) << data;
+		}
+	};
+
+	#define VLOG(lev) if(es3::logger::is_log_on(lev)) es3::logger(lev)
+
 };
 
 #endif // COMMON_H

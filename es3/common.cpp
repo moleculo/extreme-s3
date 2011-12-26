@@ -1,4 +1,5 @@
 #include "common.h"
+#include <sstream>
 
 #define BOOST_KARMA_NUMERICS_LOOP_UNROLL 6
 #include <boost/spirit/include/karma.hpp>
@@ -7,6 +8,32 @@ using boost::spirit::karma::int_;
 using boost::spirit::karma::lit;
 
 using namespace es3;
+
+static int global_verbosity_level = 0;
+std::recursive_mutex logger_lock_;
+
+es3::logger::logger(int lvl)
+	: verbosity_(lvl), stream_(new std::ostringstream())
+{
+}
+
+es3::logger::~logger()
+{
+	guard_t g(logger_lock_);
+	std::cerr
+			<< static_cast<std::ostringstream*>(stream_.get())->str()
+			<< std::endl;
+}
+
+void es3::logger::set_verbosity(int lvl)
+{
+	global_verbosity_level = lvl;
+}
+
+bool es3::logger::is_log_on(int lvl)
+{
+	return lvl<=global_verbosity_level;
+}
 
 std::string es3::int_to_string(int64_t in)
 {
