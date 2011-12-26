@@ -35,7 +35,7 @@ std::string es3::trim(const std::string &str)
 		{
 				const char c=*iter;
 
-				if (c==' ')
+				if (c==' ' || c=='\n' || c=='\r' || c=='\t')
 				{
 						ws_span++;
 				} else
@@ -49,4 +49,17 @@ std::string es3::trim(const std::string &str)
 				}
 		}
 		return res;
+}
+
+std::string es3::tobinhex(const unsigned char* data, size_t ln)
+{
+	static const char alphabet[17]="0123456789abcdef";
+	std::string res;
+	res.resize(ln*2);
+	for(size_t f=0;f<ln;++f)
+	{
+		res[f*2]=alphabet[data[f]/16];
+		res[f*2+1]=alphabet[data[f]%16];
+	}
+	return res;
 }

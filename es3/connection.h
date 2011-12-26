@@ -74,6 +74,9 @@ namespace es3 {
 								const std::string &uploadId="");
 
 		std::string initiate_multipart();
+		std::string complete_multipart(
+			const std::vector<std::string> &etags);
+		std::string find_md5();
 
 	private:
 		std::string sign(const std::string &str);

@@ -93,10 +93,10 @@ curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
 	}
 
 	//Signature
-	size_t idx = path.find_first_of("?&");
+//	size_t idx = path.find_first_of("?&");
 	std::string canonic = path;
-	if (idx!=std::string::npos)
-		canonic = canonic.substr(0, idx);
+//	if (idx!=std::string::npos)
+//		canonic = canonic.substr(0, idx);
 	std::string canonicalizedResource="/"+conn_data_.bucket_+canonic;
 	std::string stringToSign = verb + "\n" +
 		try_get(opts_, "content-md5") + "\n" +
@@ -275,19 +275,44 @@ size_t read_func(char *bufptr, size_t size, size_t nitems, void *userp)
 	return tocopy;
 }
 
-size_t find_etag(void *ptr, size_t size, size_t nmemb, void *userdata)
+static size_t find_header(void *ptr, size_t size, size_t nmemb, void *userdata,
+				   const std::string &header_name)
 {
 	std::string line(reinterpret_cast<char*>(ptr), size*nmemb);
+	std::string line_raw(reinterpret_cast<char*>(ptr), size*nmemb);
 	std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 
 	size_t pos=line.find(':');
-	assert(pos!=std::string::npos);
-	std::string name=trim(line.substr(0, pos));
-	std::string val=trim(line.substr(pos+1));
-	if (name=="etag")
-		reinterpret_cast<std::string*>(userdata)->assign(val);
+	if(pos!=std::string::npos)
+	{
+		std::string name=trim(line.substr(0, pos));
+		std::string val=trim(line_raw.substr(pos+1));
+		if (name==header_name)
+			reinterpret_cast<std::string*>(userdata)->assign(val);
+	}
 
 	return size*nmemb;
+}
+
+static size_t find_md5(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	return find_header(ptr, size, nmemb, userdata, "x-amz-meta-md5");
+}
+
+static size_t find_etag(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	return find_header(ptr, size, nmemb, userdata, "etag");
+}
+
+std::string s3_connection::find_md5()
+{
+	set_url("");
+	std::string result;
+	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &::find_md5);
+	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &result);
+	curl_easy_setopt(curl_, CURLOPT_NOBODY, 1);
+	curl_easy_perform(curl_) | die;
+	return result;
 }
 
 std::string s3_connection::upload_data(const void *addr, size_t size,
@@ -301,9 +326,7 @@ std::string s3_connection::upload_data(const void *addr, size_t size,
 		set_url("");
 	else
 	{
-		set_url("?partNumber="+int_to_string(part_num)+"&uploadId="+
-				uploadId);
-
+		set_url("");
 		curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
 		curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &result);
 	}
@@ -315,6 +338,10 @@ std::string s3_connection::upload_data(const void *addr, size_t size,
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
 
+	std::string read_data;
+	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
+	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &read_data);
+
 	curl_easy_perform(curl_);
 
 	return result;
@@ -322,7 +349,7 @@ std::string s3_connection::upload_data(const void *addr, size_t size,
 
 std::string s3_connection::initiate_multipart()
 {
-	set_url("?uploads");
+	set_url("");
 	std::string list=read_fully();
 	TiXmlDocument doc;
 	doc.Parse(list.c_str()); check(doc);
@@ -335,4 +362,39 @@ std::string s3_connection::initiate_multipart()
 	if (!node)
 		err(errFatal) << "Incorrect document format - no upload ID";
 	return node->Value();
+}
+
+std::string s3_connection::complete_multipart(
+	const std::vector<std::string> &etags)
+{
+	std::string data="<CompleteMultipartUpload>";
+	for(size_t f=0;f<etags.size();++f)
+	{
+		data.append("<Part>\n");
+		data.append("  <PartNumber>")
+				.append(int_to_string(f+1))
+				.append("</PartNumber>\n");
+		data.append("  <ETag>")
+				.append(etags.at(f))
+				.append("</ETag>\n");
+		data.append("</Part>\n");
+	}
+	data.append("</CompleteMultipartUpload>");
+
+	set_url("");
+
+	read_data data_params = {(const char*)&data[0], 0, data.size()};
+	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(data.size()));
+	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_func);
+	curl_easy_setopt(curl_, CURLOPT_READDATA, &data_params);
+
+	std::string read_data;
+	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
+	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &read_data);
+
+	curl_easy_perform(curl_);
+
+	VLOG(2) << read_data;
+	return read_data;
 }

@@ -68,6 +68,8 @@ namespace es3 {
 	ES3LIB_PUBLIC std::string base64_encode(const char *, size_t len);
 	ES3LIB_PUBLIC std::string base64_decode(const std::string &s);
 	ES3LIB_PUBLIC std::string trim(const std::string &str);
+
+	ES3LIB_PUBLIC std::string tobinhex(const unsigned char* data, size_t ln);
 };
 
 #endif // COMMON_H
