@@ -69,7 +69,11 @@ namespace es3 {
 
 		std::string read_fully();
 		file_map_t list_files(const std::string &prefix);
-		void upload_data(const void *addr, size_t size);
+		std::string upload_data(const void *addr, size_t size,
+								size_t part_num=0,
+								const std::string &uploadId="");
+
+		std::string initiate_multipart();
 
 	private:
 		std::string sign(const std::string &str);

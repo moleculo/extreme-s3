@@ -9,6 +9,9 @@
 
 namespace es3 {
 
+	struct upload_content;
+	typedef boost::shared_ptr<upload_content> upload_content_ptr;
+
 	class file_uploader : public sync_task
 	{
 		const connection_data conn_;
@@ -27,8 +30,8 @@ namespace es3 {
 
 		virtual void operator()(agenda_ptr agenda);
 	private:
-		void start_upload(const std::string &md5, const void *addr, size_t size,
-						  bool compressed);
+		void start_upload(agenda_ptr ag, const std::string &md5,
+						  upload_content_ptr content, bool compressed);
 	};
 
 	class file_deleter : public sync_task

@@ -275,10 +275,38 @@ size_t read_func(char *bufptr, size_t size, size_t nitems, void *userp)
 	return tocopy;
 }
 
-void s3_connection::upload_data(const void *addr, size_t size)
+size_t find_etag(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
+	std::string line(reinterpret_cast<char*>(ptr), size*nmemb);
+	std::transform(line.begin(), line.end(), line.begin(), ::tolower);
+
+	size_t pos=line.find(':');
+	assert(pos!=std::string::npos);
+	std::string name=trim(line.substr(0, pos));
+	std::string val=trim(line.substr(pos+1));
+	if (name=="etag")
+		reinterpret_cast<std::string*>(userdata)->assign(val);
+
+	return size*nmemb;
+}
+
+std::string s3_connection::upload_data(const void *addr, size_t size,
+									   size_t part_num,
+									   const std::string &uploadId)
+{
+	std::string result;
+
 	//Set data
-	set_url("");
+	if (uploadId.empty())
+		set_url("");
+	else
+	{
+		set_url("?partNumber="+int_to_string(part_num)+"&uploadId="+
+				uploadId);
+
+		curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
+		curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &result);
+	}
 
 	read_data data = {(const char*)addr, 0, size};
 //	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
@@ -288,4 +316,23 @@ void s3_connection::upload_data(const void *addr, size_t size)
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
 
 	curl_easy_perform(curl_);
+
+	return result;
+}
+
+std::string s3_connection::initiate_multipart()
+{
+	set_url("?uploads");
+	std::string list=read_fully();
+	TiXmlDocument doc;
+	doc.Parse(list.c_str()); check(doc);
+	TiXmlHandle docHandle(&doc);
+
+	TiXmlNode *node=docHandle.FirstChild("InitiateMultipartUploadResult")
+			.FirstChild("UploadId")
+			.FirstChild()
+			.ToText();
+	if (!node)
+		err(errFatal) << "Incorrect document format - no upload ID";
+	return node->Value();
 }
