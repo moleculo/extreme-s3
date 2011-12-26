@@ -24,8 +24,7 @@ static file_mapping try_compress_and_open(const path &p, bool &compressed)
 
 	std::string ext=p.extension().string();
 	if (ext=="gz" || ext=="zip"
-			|| ext=="tgz" || ext=="bz2" || ext=="7z"
-			|| true)
+			|| ext=="tgz" || ext=="bz2" || ext=="7z")
 		return file_mapping(p.string().c_str(), read_only);
 
 	uint64_t file_sz=file_size(p);
