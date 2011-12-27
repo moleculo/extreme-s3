@@ -50,7 +50,7 @@ static file_mapping try_compress_and_open(const std::string &p,
 		return file_mapping(p.c_str(), read_only);
 	std::string tmp_file = tmp_file_buf;
 
-	//Ok, try to compress the file	
+	//Ok, try to compress the file
 	create_symlink(system_complete(p), tmp_file); //Create temp symlink
 	ON_BLOCK_EXIT(unlink, tmp_file_buf); //Always delete the temp file
 
@@ -239,7 +239,6 @@ void file_uploader::start_upload(agenda_ptr ag, const std::string &md5,
 					   content->region_.get_size());
 	}
 }
-
 
 void file_deleter::operator()(agenda_ptr agenda)
 {

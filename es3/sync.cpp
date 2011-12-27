@@ -1,5 +1,6 @@
 #include "sync.h"
 #include "uploader.h"
+#include "downloader.h"
 #include <set>
 #include <boost/filesystem.hpp>
 #include <iostream>
@@ -51,11 +52,18 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				{
 					if (to_.delete_missing_)
 					{
-						sync_task_ptr task(
-									new file_deleter(to_,
-													 cur_remote_child->full_name_));
-						agenda_->schedule(task);
-						process_dir(0, dent_path, new_remote_path+"/");
+						if (to_.upload_)
+						{
+							sync_task_ptr task(new file_deleter(to_,
+								 cur_remote_child->full_name_));
+							agenda_->schedule(task);
+							process_dir(0, dent_path, new_remote_path+"/");
+						} else
+						{
+							sync_task_ptr task(new file_downloader(to_,
+								dent_path, new_remote_path, "", true));
+							agenda_->schedule(task);
+						}
 					} else
 					{
 						VLOG(0) << "Local file "<< dent.path() << " "
@@ -64,31 +72,53 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 								<< "remote side";
 					}
 				} else
-				{
 					process_dir(&cur_remote_child->children_,
-								dent_path, new_remote_path+"/");
-				}
+						dent_path, new_remote_path+"/");
 			} else
 			{
-				process_dir(0, dent_path, new_remote_path+"/");
+				if (to_.upload_)
+				{
+					process_dir(&cur_remote_child->children_,
+						dent_path, new_remote_path+"/");
+				}
+				else
+				{
+					sync_task_ptr task(new local_file_deleter(dent_path));
+					agenda_->schedule(task);
+				}
 			}
 		} else if (dent.status().type()==regular_file)
 		{
 			//Regular file
-			if (!cur_remote_child)
+			if (to_.upload_)
 			{
-				sync_task_ptr task(
-							new file_uploader(
-								to_, dent_path, new_remote_path, ""));
-				agenda_->schedule(task);
-			}
-			else
+				if (!cur_remote_child)
+				{
+					sync_task_ptr task(new file_uploader(
+						to_, dent_path, new_remote_path, ""));
+					agenda_->schedule(task);
+				}
+				else
+				{
+					sync_task_ptr task(new file_uploader(
+						to_, dent_path, new_remote_path,
+						cur_remote_child->etag_));
+					agenda_->schedule(task);
+				}
+			} else
 			{
-				sync_task_ptr task(
-							new file_uploader(
-								to_, dent_path, new_remote_path,
-								cur_remote_child->etag_));
-				agenda_->schedule(task);
+				if (!cur_remote_child)
+				{
+					sync_task_ptr task(new local_file_deleter(dent_path));
+					agenda_->schedule(task);
+				}
+				else
+				{
+					sync_task_ptr task(new file_downloader(
+						to_, dent_path, new_remote_path,
+						cur_remote_child->etag_));
+					agenda_->schedule(task);
+				}
 			}
 		} else if (dent.status().type()==symlink_file)
 		{
@@ -101,18 +131,30 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 	}
 
 	if (to_.delete_missing_)
-		del_recursive(cur_remote_copy);
+		process_missing(cur_remote_copy, cur_remote_path);
 }
 
-void synchronizer::del_recursive(const file_map_t &cur)
+void synchronizer::process_missing(const file_map_t &cur,
+								   const std::string &cur_local_path)
 {
 	for(auto f = cur.begin(); f!=cur.end();++f)
 	{
 		if (f->second->is_dir_)
-			del_recursive(f->second->children_);
+			process_missing(f->second->children_,
+							cur_local_path+f->first+"/");
 		else
-			agenda_->schedule(
-						sync_task_ptr(
-							new file_deleter(to_, f->second->full_name_)));
+		{
+			if (to_.upload_)
+			{
+				agenda_->schedule(sync_task_ptr(
+					new file_deleter(to_, f->second->full_name_)));
+			} else
+			{
+				//Missing local file just means that we need to download it
+				agenda_->schedule(sync_task_ptr(
+					new file_downloader(to_, cur_local_path+f->first,
+										f->second->full_name_,"")));
+			}
+		}
 	}
 }

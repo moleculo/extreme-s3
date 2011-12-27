@@ -5,6 +5,7 @@ SET(es3_SRCS
 	base64.cpp
 	common.cpp
 	connection.cpp
+	downloader.cpp
 	errors.cpp
 	main.cpp
 
@@ -15,6 +16,7 @@ SET(es3_INCLUDES
 	agenda.h
 	common.h
 	connection.h
+	downloader.h
 	errors.h
 	scope_guard.h
 	uploader.h
@@ -25,7 +27,7 @@ SET(es3_INCLUDES
 SET(Boost_USE_STATIC_LIBS ON)
 SET(Boost_USE_STATIC_RUNTIME ON)
 SET(Boost_USE_STATIC_RUNTIME ON)
-SET(Boost_ADDITIONAL_VERSIONS "1.42" "1.42.0" "1.48" "1.48.0")
+SET(Boost_ADDITIONAL_VERSIONS "1.42" "1.42.0" "1.48" "1.48.0" "1.46" "1.46.1")
 FIND_PACKAGE(Boost 1.42 COMPONENTS program_options filesystem system)
 FIND_PACKAGE(CURL)
 FIND_PACKAGE(OpenSSL)

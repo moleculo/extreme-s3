@@ -22,7 +22,8 @@ namespace es3 {
 						 const std::string &cur_local,
 						 const std::string &cur_remote_path);
 
-		void del_recursive(const file_map_t &cur);
+		void process_missing(const file_map_t &cur,
+							 const std::string &cur_remote_path);
 	};
 
 }; //namespace es3
