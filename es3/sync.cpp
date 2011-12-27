@@ -7,6 +7,12 @@
 using namespace es3;
 using namespace boost::filesystem;
 
+//Boost.Filesystem incompatibilities workaround
+static std::string get_file(const std::string &name)
+{
+	return name;
+}
+
 synchronizer::synchronizer(agenda_ptr agenda, const connection_data &to)
 	: agenda_(agenda), to_(to)
 {
@@ -21,7 +27,7 @@ void synchronizer::create_schedule()
 }
 
 void synchronizer::process_dir(file_map_t *cur_remote,
-							  const boost::filesystem::path &cur_local,
+							  const std::string &cur_local,
 							  const std::string &cur_remote_path)
 {
 	file_map_t cur_remote_copy = cur_remote ? *cur_remote : file_map_t();
@@ -31,12 +37,15 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 	{
 		const directory_entry &dent = *iter;
 		std::string new_remote_path = cur_remote_path+
-				dent.path().filename().string();
+				get_file(dent.path().filename());
 
 		remote_file_ptr cur_remote_child=try_get(
-					cur_remote_copy, dent.path().filename().string(),
+					cur_remote_copy, get_file(dent.path().filename()),
 					remote_file_ptr());
-		cur_remote_copy.erase(dent.path().filename().string());
+		cur_remote_copy.erase(get_file(dent.path().filename()));
+
+		std::string dent_path=get_file(
+					system_complete(dent.path()).file_string());
 
 		if (dent.status().type()==directory_file)
 		{
@@ -47,8 +56,11 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				{
 					if (to_.delete_missing_)
 					{
-//						agenda_->schedule_removal(to_, cur_remote_child);
-						process_dir(0, dent.path(), new_remote_path+"/");
+						sync_task_ptr task(
+									new file_deleter(to_,
+													 cur_remote_child->full_name_));
+						agenda_->schedule(task);
+						process_dir(0, dent_path, new_remote_path+"/");
 					} else
 					{
 						VLOG(0) << "Local file "<< dent.path() << " "
@@ -59,11 +71,11 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				} else
 				{
 					process_dir(&cur_remote_child->children_,
-								dent.path(), new_remote_path+"/");
+								dent_path, new_remote_path+"/");
 				}
 			} else
 			{
-				process_dir(0, dent.path(), new_remote_path+"/");
+				process_dir(0, dent_path, new_remote_path+"/");
 			}
 		} else if (dent.status().type()==regular_file)
 		{
@@ -72,14 +84,14 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 			{
 				sync_task_ptr task(
 							new file_uploader(
-								to_, dent.path(), new_remote_path, ""));
+								to_, dent_path, new_remote_path, ""));
 				agenda_->schedule(task);
 			}
 			else
 			{
 				sync_task_ptr task(
 							new file_uploader(
-								to_, dent.path(), new_remote_path,
+								to_, dent_path, new_remote_path,
 								cur_remote_child->etag_));
 				agenda_->schedule(task);
 			}

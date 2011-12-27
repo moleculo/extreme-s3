@@ -2,12 +2,15 @@
 #include "scope_guard.h"
 #include "errors.h"
 
-#include <boost/filesystem.hpp>
-#include <boost/interprocess/file_mapping.hpp>
-#include <boost/interprocess/mapped_region.hpp>
 #include <iostream>
 #include <openssl/md5.h>
 #include <stdint.h>
+
+//Workaround for Boost bugs
+#undef BOOST_HAS_RVALUE_REFS
+#include <boost/interprocess/file_mapping.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/filesystem.hpp>
 
 #define COMPRESSION_THRESHOLD 100000
 #define MIN_RATIO 0.9d
@@ -17,50 +20,62 @@
 
 using namespace es3;
 using namespace boost::interprocess;
-using namespace boost::filesystem;
 
-static file_mapping try_compress_and_open(const path &p, bool &compressed)
+//Boost.Filesystem incompatibilities workaround
+static std::string get_file(const std::string &name)
 {
+	return name;
+}
+
+static file_mapping try_compress_and_open(const std::string &p,
+										  bool &compressed)
+{
+	using namespace boost::filesystem;
 	compressed = false;
 
-	std::string ext=p.extension().string();
-	if (ext=="gz" || ext=="zip"
-			|| ext=="tgz" || ext=="bz2" || ext=="7z")
-		return file_mapping(p.string().c_str(), read_only);
+	std::string ext=get_file(path(p).extension());
+	if (ext==".gz" || ext==".zip"
+			|| ext==".tgz" || ext==".bz2" || ext==".7z")
+		return file_mapping(p.c_str(), read_only);
 
 	uint64_t file_sz=file_size(p);
 	if (file_sz <= COMPRESSION_THRESHOLD)
-		return file_mapping(p.string().c_str(), read_only);
+		return file_mapping(p.c_str(), read_only);
 
 	//Check for GZIP magic
 	char magic[4]={0};
-	FILE *fl=fopen(p.string().c_str(), "rb");
+	FILE *fl=fopen(p.c_str(), "rb");
 	fread(magic, 4, 1, fl);
 	fclose(fl);
 	if (magic[0]==0x1F && magic[1] == 0x8B && magic[2]==0x8 && magic[3]==0x8)
-		return file_mapping(p.string().c_str(), read_only);
+		return file_mapping(p.c_str(), read_only);
 
-	//Ok, try to compress the file
-	path tmp_file = temp_directory_path() / unique_path();
+	char tmp_file_buf[]={"/tmp/uncompressed-XXXXXX"};
+	mktemp(tmp_file_buf);
+	if (strlen(tmp_file_buf)==0)
+		return file_mapping(p.c_str(), read_only);
+	std::string tmp_file = tmp_file_buf;
+
+	//Ok, try to compress the file	
 	create_symlink(system_complete(p), tmp_file); //Create temp symlink
-	ON_BLOCK_EXIT(unlink, tmp_file.c_str()); //Always delete the temp file
+	ON_BLOCK_EXIT(unlink, tmp_file_buf); //Always delete the temp file
 
-	int ret=system(("pigz -n -T -f "+tmp_file.string()).c_str());
+	int ret=system(("pigz -n -T -f "+tmp_file).c_str());
 	if (WEXITSTATUS(ret)!=0) //Not found or other problems
 	{
-		int ret2=system(("gzip -n -f "+tmp_file.string()).c_str());
+		int ret2=system(("gzip -n -f "+tmp_file).c_str());
 		if (WEXITSTATUS(ret2)!=0)
 			err(errFatal) << "Can't execute gzip/pigz on "<<p;
 	}
 
-	path gzipped = path(tmp_file.string()+".gz");
+	std::string gzipped = tmp_file+".gz";
 	ON_BLOCK_EXIT(unlink, gzipped.c_str()); //Always delete the temp file
 
 	if (file_size(gzipped) >= file_sz*MIN_RATIO)
-		return file_mapping(p.string().c_str(), read_only);
+		return file_mapping(p.c_str(), read_only);
 
 	compressed = true;
-	return file_mapping(gzipped.string().c_str(), read_only);
+	return file_mapping(gzipped.c_str(), read_only);
 }
 
 struct es3::upload_content

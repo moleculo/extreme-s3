@@ -5,7 +5,6 @@
 #include "agenda.h"
 #include "connection.h"
 #include <stdint.h>
-#include <boost/filesystem.hpp>
 
 namespace es3 {
 
@@ -19,8 +18,8 @@ namespace es3 {
 		void create_schedule();
 
 	private:
-		void process_dir(file_map_t *cur_remote, const
-						 boost::filesystem::path &cur_local,
+		void process_dir(file_map_t *cur_remote,
+						 const std::string &cur_local,
 						 const std::string &cur_remote_path);
 
 		void del_recursive(const file_map_t &cur);
