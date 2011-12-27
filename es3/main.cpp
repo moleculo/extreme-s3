@@ -21,34 +21,34 @@ int main(int argc, char **argv)
 	po::options_description desc("Allowed options");
 	desc.add_options()
 		("help", "Display this message")
-		("config", po::value<std::string>(),
+		("config,c", po::value<std::string>(),
 			"Path to a file that contains configuration settings")
-		("verbosity", po::value<int>(&verbosity)->default_value(0),
+		("verbosity,v", po::value<int>(&verbosity)->default_value(0),
 			"Verbosity level [0 - the lowest, 9 - the highest]")
 
-		("access-key", po::value<std::string>(
+		("access-key,a", po::value<std::string>(
 				 &cd.api_key_)->required(),
 			"Amazon S3 API key")
-		("secret-key", po::value<std::string>(
+		("secret-key,s", po::value<std::string>(
 			 &cd.secret_key)->required(),
 			"Amazon S3 secret key")
-		("use-ssl", po::value<bool>(
+		("use-ssl,l", po::value<bool>(
 			 &cd.use_ssl_)->default_value(false),
 			"Use SSL for communications with the Amazon S3 servers")
 
-		("do-upload", po::value<bool>(&cd.upload_)->default_value(true),
+		("do-upload,u", po::value<bool>(&cd.upload_)->default_value(true),
 			"Upload local changes to the server")
-		("delete-missing", po::value<bool>(
+		("delete-missing,d", po::value<bool>(
 			 &cd.delete_missing_)->default_value(false),
 			"Delete missing files from the remote side")
 
-		("sync-dir", po::value<std::string>(
+		("sync-dir,i", po::value<std::string>(
 			 &cd.local_root_)->required(),
 			"Local directory")
-		("bucket-name", po::value<std::string>(
+		("bucket-name,o", po::value<std::string>(
 			 &cd.bucket_)->required(),
 			"Name of Amazon S3 bucket")
-		("remote-path", po::value<std::string>(
+		("remote-path,p", po::value<std::string>(
 			 &cd.remote_root_)->default_value("/")->required(),
 			"Path in the Amazon S3 bucket")
 	;
