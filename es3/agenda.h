@@ -2,8 +2,8 @@
 #define AGENDA_H
 
 #include "common.h"
-#include "errors.h"
-#include <boost/filesystem.hpp>
+#include <boost/enable_shared_from_this.hpp>
+#include <condition_variable>
 
 namespace es3 {
 	struct connection_data;
@@ -22,17 +22,20 @@ namespace es3 {
 
 	class agenda : public boost::enable_shared_from_this<agenda>
 	{
-		agenda();
+		agenda(size_t thread_num);
+		size_t thread_num_;
+
+		std::vector<sync_task_ptr> tasks_;
+		size_t num_working_;
+		std::condition_variable condition_;
+		std::mutex m_;
+
+		friend class task_executor;
 	public:
-		static boost::shared_ptr<agenda> make_new();
+		static boost::shared_ptr<agenda> make_new(size_t thread_num);
 
 		void schedule(sync_task_ptr task);
-
-		void schedule_removal(const connection_data &data,
-							  remote_file_ptr file);
-		void schedule_upload(const connection_data &data,
-			const boost::filesystem::path &path, const std::string &remote,
-			const std::string &etag);
+		void run();
 	};
 
 }; //namespace es3

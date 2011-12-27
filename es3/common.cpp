@@ -10,7 +10,7 @@ using boost::spirit::karma::lit;
 using namespace es3;
 
 static int global_verbosity_level = 0;
-std::recursive_mutex logger_lock_;
+std::mutex logger_lock_;
 
 es3::logger::logger(int lvl)
 	: verbosity_(lvl), stream_(new std::ostringstream())
@@ -37,45 +37,45 @@ bool es3::logger::is_log_on(int lvl)
 
 std::string es3::int_to_string(int64_t in)
 {
-		char buffer[64];
-		char *ptr = buffer;
-		karma::generate(ptr, int_, in);
-		*ptr = '\0';
-		return std::string(buffer, ptr-buffer);
+	char buffer[64];
+	char *ptr = buffer;
+	karma::generate(ptr, int_, in);
+	*ptr = '\0';
+	return std::string(buffer, ptr-buffer);
 }
 
-void es3::append_int_to_string(int64_t in, jstring_t &out)
+void es3::append_int_to_string(int64_t in, std::string &out)
 {
-		char buffer[64];
-		char *ptr = buffer;
-		karma::generate(ptr, int_, in);
-		*ptr = '\0';
-		out.append(buffer, ptr);
+	char buffer[64];
+	char *ptr = buffer;
+	karma::generate(ptr, int_, in);
+	*ptr = '\0';
+	out.append(buffer, ptr);
 }
 
 std::string es3::trim(const std::string &str)
 {
-		std::string res;
-		bool hit_non_ws=false;
-		int ws_span=0;
-		for(std::string::const_iterator iter=str.begin();iter!=str.end();++iter)
+	std::string res;
+	bool hit_non_ws=false;
+	int ws_span=0;
+	for(std::string::const_iterator iter=str.begin();iter!=str.end();++iter)
+	{
+		const char c=*iter;
+
+		if (c==' ' || c=='\n' || c=='\r' || c=='\t')
 		{
-				const char c=*iter;
+			ws_span++;
+		} else
+		{
+			if (ws_span!=0 && hit_non_ws)
+					res.append(ws_span, ' ');
+			ws_span=0;
+			hit_non_ws=true;
 
-				if (c==' ' || c=='\n' || c=='\r' || c=='\t')
-				{
-						ws_span++;
-				} else
-				{
-						if (ws_span!=0 && hit_non_ws)
-								res.append(ws_span, ' ');
-						ws_span=0;
-						hit_non_ws=true;
-
-						res.append(1, c);
-				}
+			res.append(1, c);
 		}
-		return res;
+	}
+	return res;
 }
 
 std::string es3::tobinhex(const unsigned char* data, size_t ln)

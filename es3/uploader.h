@@ -1,14 +1,12 @@
 #ifndef UPLOADER_H
 #define UPLOADER_H
 
-#include <common.h>
-#include "agenda.h"
 #include "connection.h"
-#include <stdint.h>
+#include "common.h"
+#include "agenda.h"
 #include <boost/filesystem.hpp>
 
 namespace es3 {
-
 	struct upload_content;
 	typedef boost::shared_ptr<upload_content> upload_content_ptr;
 

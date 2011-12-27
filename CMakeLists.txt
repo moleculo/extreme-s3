@@ -62,8 +62,8 @@ ELSE()
 	MESSAGE(FATAL_ERROR "Unsupported target OS!")
 ENDIF()
 
-FIND_PACKAGE(Boost 1.46 COMPONENTS boost_thread boost_program_options
-	boost_filesystem boost_system)
+FIND_PACKAGE(Boost 1.46 COMPONENTS boost_program_options
+	boost_filesystem boost_system unit_test_framework)
 
 INCLUDE_DIRECTORIES(${PROJECT_BINARY_DIR}/include)
 

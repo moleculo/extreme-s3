@@ -1,4 +1,5 @@
 #include "sync.h"
+#include "uploader.h"
 #include <set>
 #include <boost/filesystem.hpp>
 #include <iostream>
@@ -46,7 +47,7 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				{
 					if (to_.delete_missing_)
 					{
-						agenda_->schedule_removal(to_, cur_remote_child);
+//						agenda_->schedule_removal(to_, cur_remote_child);
 						process_dir(0, dent.path(), new_remote_path+"/");
 					} else
 					{
@@ -68,11 +69,19 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 		{
 			//Regular file
 			if (!cur_remote_child)
-				agenda_->schedule_upload(to_, dent.path(), new_remote_path, "");
+			{
+				sync_task_ptr task(
+							new file_uploader(
+								to_, dent.path(), new_remote_path, ""));
+				agenda_->schedule(task);
+			}
 			else
 			{
-				agenda_->schedule_upload(to_, dent.path(), new_remote_path,
-										 cur_remote_child->etag_);
+				sync_task_ptr task(
+							new file_uploader(
+								to_, dent.path(), new_remote_path,
+								cur_remote_child->etag_));
+				agenda_->schedule(task);
 			}
 		} else if (dent.status().type()==symlink_file)
 		{
@@ -95,6 +104,8 @@ void synchronizer::del_recursive(const file_map_t &cur)
 		if (f->second->is_dir_)
 			del_recursive(f->second->children_);
 		else
-			agenda_->schedule_removal(to_, f->second);
+			agenda_->schedule(
+						sync_task_ptr(
+							new file_deleter(to_, f->second->full_name_)));
 	}
 }

@@ -2,6 +2,7 @@
 #define CONNECTION_H
 
 #include "common.h"
+#include <boost/weak_ptr.hpp>
 
 typedef void CURL;
 struct curl_slist;
@@ -11,10 +12,8 @@ namespace es3 {
 	struct ci_string_less :
 		public std::binary_function<std::string, std::string, bool>
 	{
-		bool operator()(const std::string &lhs, const std::string &rhs) const
-		{
-			return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ? 1 : 0;
-		}
+		ES3LIB_PUBLIC bool operator()(const std::string &lhs,
+									  const std::string &rhs) const;
 	};
 
 	template<typename K, typename V, typename C, typename A, typename K2>

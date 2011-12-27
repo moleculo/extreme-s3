@@ -13,7 +13,7 @@ namespace po = boost::program_options;
 
 int main(int argc, char **argv)
 {
-	int verbosity = 0;
+	int verbosity = 0, thread_num = 0;
 
 	connection_data cd;
 	cd.use_ssl_ = false;
@@ -25,6 +25,8 @@ int main(int argc, char **argv)
 			"Path to a file that contains configuration settings")
 		("verbosity,v", po::value<int>(&verbosity)->default_value(0),
 			"Verbosity level [0 - the lowest, 9 - the highest]")
+		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
+			"Number of threads used [0 - autodetect]")
 
 		("access-key,a", po::value<std::string>(
 				 &cd.api_key_)->required(),
@@ -84,9 +86,10 @@ int main(int argc, char **argv)
 	curl_global_init(CURL_GLOBAL_ALL);
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
-	agenda_ptr ag=agenda::make_new();
+	agenda_ptr ag=agenda::make_new(thread_num);
 	synchronizer sync(ag, cd);
 	sync.create_schedule();
+	ag->run();
 
 	return 0;
 }

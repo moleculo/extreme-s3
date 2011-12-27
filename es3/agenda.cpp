@@ -1,83 +1,120 @@
 #include "agenda.h"
-
+#include "errors.h"
+#include <condition_variable>
 #include <unistd.h>
-#include <boost/threadpool.hpp>
-#include "uploader.h"
+#include <thread>
 
 using namespace es3;
 
-//Utility thread pool
-boost::threadpool::pool the_pool(
-//#ifdef NDEBUG
-	sysconf(_SC_NPROCESSORS_ONLN)+8
-//#else
-//	1
-//#endif
-);
-
-agenda_ptr agenda::make_new()
+agenda_ptr agenda::make_new(size_t thread_num)
 {
-	return agenda_ptr(new agenda());
+	return agenda_ptr(new agenda(thread_num));
 }
 
-agenda::agenda()
+agenda::agenda(size_t thread_num) : num_working_(), thread_num_(thread_num)
 {
 
 }
 
-struct task_executor
+namespace es3
 {
-	sync_task_ptr task_;
-	agenda_ptr agenda_;
-	void operator ()()
+	class task_executor
 	{
-		for(int f=0; f<10; ++f)
+		agenda_ptr agenda_;
+	public:
+		task_executor(agenda_ptr agenda) : agenda_(agenda) {}
+
+		sync_task_ptr claim_task()
 		{
-			try
+			while(true)
 			{
-				(*task_)(agenda_);
-				return;
-			} catch (const es3_exception &ex)
-			{
-				const result_code_t &code = ex.err();
-				if (code.code()==errNone)
+				u_guard_t lock(agenda_->m_);
+				if (agenda_->tasks_.empty())
 				{
-					VLOG(1) << ex.what();
-					continue;
-				} else if (code.code()==errWarn)
-				{
-					VLOG(0) << ex.what();
-					continue;
-				} else
-				{
-					VLOG(0) << ex.what();
-					break;
+					if (agenda_->num_working_==0)
+						return sync_task_ptr();
+					else
+					{
+						agenda_->condition_.wait(lock);
+						continue;
+					}
 				}
+
+				sync_task_ptr cur_task = agenda_->tasks_.back();
+				agenda_->tasks_.pop_back();
+				agenda_->num_working_++;
+				return cur_task;
 			}
 		}
-	}
-};
 
-void agenda::schedule_upload(const connection_data &data,
-							 const boost::filesystem::path &path,
-							 const std::string &remote,
-							 const std::string &etag)
-{
-	sync_task_ptr task(new file_uploader(data, path, remote, etag));
-	agenda_ptr ptr = shared_from_this();
-	the_pool.schedule(task_executor {task, ptr});
-}
+		void cleanup()
+		{
+			u_guard_t lock(agenda_->m_);
+			agenda_->num_working_--;
+			if (agenda_->tasks_.empty() && agenda_->num_working_==0)
+				agenda_->condition_.notify_all();
+		}
 
-void agenda::schedule_removal(const connection_data &data,
-							  remote_file_ptr file)
-{
-	sync_task_ptr task(new file_deleter(data, file->full_name_));
-	agenda_ptr ptr = shared_from_this();
-	the_pool.schedule(task_executor {task, ptr});
+		void operator ()()
+		{
+			while(true)
+			{
+				sync_task_ptr cur_task=claim_task();
+				if (!cur_task)
+					break;
+
+				for(int f=0; f<10; ++f)
+				{
+					try
+					{
+						(*cur_task)(agenda_);
+						break;
+					} catch (const es3_exception &ex)
+					{
+						const result_code_t &code = ex.err();
+						if (code.code()==errNone)
+						{
+							VLOG(1) << ex.what();
+							continue;
+						} else if (code.code()==errWarn)
+						{
+							VLOG(0) << ex.what();
+							continue;
+						} else
+						{
+							VLOG(0) << ex.what();
+							break;
+						}
+					} catch(...)
+					{
+						cleanup();
+						throw;
+					}
+				}
+
+				cleanup();
+			}
+		}
+	};
 }
 
 void agenda::schedule(sync_task_ptr task)
 {
+	u_guard_t lock(m_);
 	agenda_ptr ptr = shared_from_this();
-	the_pool.schedule(task_executor {task, ptr});
+	tasks_.push_back(task);
+	condition_.notify_one();
+}
+
+void agenda::run()
+{
+	std::vector<std::thread> threads;
+	size_t num_threads = thread_num_>0 ? thread_num_ :
+			sysconf(_SC_NPROCESSORS_ONLN)+8;
+
+	for(int f=0;f<num_threads;++f)
+		threads.push_back(std::thread(task_executor(shared_from_this())));
+
+	for(int f=0;f<num_threads;++f)
+		threads.at(f).join();
 }

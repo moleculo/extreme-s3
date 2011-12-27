@@ -29,19 +29,8 @@
 #include <boost/shared_ptr.hpp>
 #include <string>
 #include <vector>
+#include <map>
 #include <stdexcept>
-
-#include <mutex>
-typedef std::lock_guard<std::recursive_mutex> guard_t;
-
-#define BOOST_SYSTEM_NO_DEPRECATED
-#undef BOOST_HAS_RVALUE_REFS
-#include <boost/thread.hpp>
-#define BOOST_HAS_RVALUE_REFS
-
-//#include <ext/vstring.h>
-//typedef __gnu_cxx::__vstring jstring_t;
-typedef std::string jstring_t;
 
 #ifndef NDEBUG
 	#include <execinfo.h>
@@ -58,9 +47,14 @@ typedef std::string jstring_t;
 	}
 #endif
 
+#include <mutex>
+
 namespace es3 {
+	typedef std::lock_guard<std::mutex> guard_t;
+	typedef std::unique_lock<std::mutex> u_guard_t;
+
 	ES3LIB_PUBLIC std::string int_to_string(int64_t in);
-	ES3LIB_PUBLIC void append_int_to_string(int64_t in, jstring_t &out);
+	ES3LIB_PUBLIC void append_int_to_string(int64_t in, std::string &out);
 
 	ES3LIB_PUBLIC std::string base64_encode(const char *, size_t len);
 	ES3LIB_PUBLIC std::string base64_decode(const std::string &s);

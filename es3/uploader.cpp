@@ -1,16 +1,17 @@
 #include "uploader.h"
-#include <set>
+#include "scope_guard.h"
+#include "errors.h"
+
 #include <boost/filesystem.hpp>
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <iostream>
 #include <openssl/md5.h>
-#include <scope_guard.h>
+#include <stdint.h>
 
 #define COMPRESSION_THRESHOLD 100000
 #define MIN_RATIO 0.9d
 
-//#define MIN_PART_SIZE 10000000
 #define MIN_PART_SIZE 5242880
 #define MAX_PART_NUM 10
 
@@ -66,7 +67,7 @@ struct es3::upload_content
 {
 	upload_content() : num_parts_(), num_completed_() {}
 
-	std::recursive_mutex lock_;
+	std::mutex lock_;
 	size_t num_parts_;
 	size_t num_completed_;
 	std::vector<std::string> etags_;

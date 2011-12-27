@@ -5,9 +5,16 @@
 #include <tinyxml.h>
 #include <iostream>
 #include <assert.h>
+#include <strings.h>
 #include "scope_guard.h"
 
 using namespace es3;
+
+bool es3::ci_string_less::operator()(const std::string &lhs,
+									 const std::string &rhs) const
+{
+	return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ? 1 : 0;
+}
 
 void operator | (const CURLcode &code, const die_t &die)
 {
