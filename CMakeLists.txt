@@ -62,7 +62,8 @@ ELSE()
 	MESSAGE(FATAL_ERROR "Unsupported target OS!")
 ENDIF()
 
-FIND_PACKAGE(Boost 1.42 COMPONENTS thread regex date_time unit_test_framework)
+FIND_PACKAGE(Boost 1.46 COMPONENTS boost_thread boost_program_options
+	boost_filesystem boost_system)
 
 INCLUDE_DIRECTORIES(${PROJECT_BINARY_DIR}/include)
 

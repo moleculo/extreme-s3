@@ -1,7 +1,7 @@
-#include "common.h"
-#include <gflags/gflags.h>
-#include "scope_guard.h"
 #include <iostream>
+#include <boost/program_options.hpp>
+#include "common.h"
+#include "scope_guard.h"
 #include "connection.h"
 #include "agenda.h"
 #include "sync.h"
@@ -9,41 +9,80 @@
 using namespace es3;
 #include <curl/curl.h>
 
-DEFINE_string(access_key, "", "Access key");
-DEFINE_string(secret_key, "", "Secret key");
-DEFINE_bool(do_upload, false, "Do upload");
-DEFINE_bool(delete_missing, false, "Delete missing");
-
-DEFINE_string(sync_dir, ".", "Local directory");
-DEFINE_string(bucket_name, "", "Bucket name");
-DEFINE_string(remote_path, "/", "Remote path");
+namespace po = boost::program_options;
 
 int main(int argc, char **argv)
 {
-	ON_BLOCK_EXIT(&google::ShutDownCommandLineFlags);
-	google::SetUsageMessage("Usage");
-	google::SetVersionString("ExtremeS3 0.1");
-	google::ParseCommandLineFlags(&argc, &argv, true);
-
-	if (FLAGS_bucket_name.empty() || FLAGS_access_key.empty() ||
-			FLAGS_secret_key.empty())
-	{
-		printf("Not enough arguments. Use --help for help.\n");
-		return 1;
-	}
-
-	curl_global_init(CURL_GLOBAL_ALL);
-	ON_BLOCK_EXIT(&curl_global_cleanup);
+	int verbosity = 0;
 
 	connection_data cd;
 	cd.use_ssl_ = false;
-	cd.upload_ = false;
-	cd.bucket_ = FLAGS_bucket_name;
-	cd.local_root_ = FLAGS_sync_dir;
-	cd.remote_root_ = FLAGS_remote_path;
-	cd.secret_key = FLAGS_secret_key;
-	cd.api_key_ = FLAGS_access_key;
-	cd.delete_missing_ = FLAGS_delete_missing;
+
+	po::options_description desc("Allowed options");
+	desc.add_options()
+		("help", "Display this message")
+		("config", po::value<std::string>(),
+			"Path to a file that contains configuration settings")
+		("verbosity", po::value<int>(&verbosity)->default_value(0),
+			"Verbosity level [0 - the lowest, 9 - the highest]")
+
+		("access-key", po::value<std::string>(
+				 &cd.api_key_)->required(),
+			"Amazon S3 API key")
+		("secret-key", po::value<std::string>(
+			 &cd.secret_key)->required(),
+			"Amazon S3 secret key")
+		("use-ssl", po::value<bool>(
+			 &cd.use_ssl_)->default_value(false),
+			"Use SSL for communications with the Amazon S3 servers")
+
+		("do-upload", po::value<bool>(&cd.upload_)->default_value(true),
+			"Upload local changes to the server")
+		("delete-missing", po::value<bool>(
+			 &cd.delete_missing_)->default_value(false),
+			"Delete missing files from the remote side")
+
+		("sync-dir", po::value<std::string>(
+			 &cd.local_root_)->required(),
+			"Local directory")
+		("bucket-name", po::value<std::string>(
+			 &cd.bucket_)->required(),
+			"Name of Amazon S3 bucket")
+		("remote-path", po::value<std::string>(
+			 &cd.remote_root_)->default_value("/")->required(),
+			"Path in the Amazon S3 bucket")
+	;
+
+	po::variables_map vm;
+	po::store(po::parse_command_line(argc, argv, desc), vm);
+
+	if (argc < 2 || vm.count("help"))
+	{
+		std::cout << "Extreme S3 - fast rsync\n" << desc;
+		return 1;
+	}
+
+	if (vm.count("config"))
+	{
+		// Parse the file and store the options
+		std::string config_file = vm["config"].as<std::string>();
+		po::store(po::parse_config_file<char>(config_file.c_str(),desc), vm);
+	}
+
+	try
+	{
+		po::notify(vm);
+	} catch(const boost::program_options::required_option &option)
+	{
+		std::cerr << "Required option " << option.get_option_name()
+				  << " is not present." << std::endl;
+		return 1;
+	}
+
+	logger::set_verbosity(verbosity);
+
+	curl_global_init(CURL_GLOBAL_ALL);
+	ON_BLOCK_EXIT(&curl_global_cleanup);
 
 	agenda_ptr ag=agenda::make_new();
 	synchronizer sync(ag, cd);
