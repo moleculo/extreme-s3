@@ -39,8 +39,7 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 					remote_file_ptr());
 		cur_remote_copy.erase(get_file(dent.path().filename()));
 
-		std::string dent_path=get_file(
-					system_complete(dent.path()).file_string());
+		std::string dent_path=get_file(system_complete(dent.path()).filename());
 
 		if (dent.status().type()==directory_file)
 		{
