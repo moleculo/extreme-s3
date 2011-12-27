@@ -22,10 +22,17 @@ using namespace es3;
 using namespace boost::interprocess;
 
 //Boost.Filesystem incompatibilities workaround
+#if BOOST_FILESYSTEM_VERSION!=3
 static std::string get_file(const std::string &name)
 {
 	return name;
 }
+#else
+static std::string get_file(const boost::filesystem3::path &name)
+{
+	return name.string();
+}
+#endif
 
 static file_mapping try_compress_and_open(const std::string &p,
 										  bool &compressed)
