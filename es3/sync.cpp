@@ -3,15 +3,10 @@
 #include <set>
 #include <boost/filesystem.hpp>
 #include <iostream>
+#include "workaround.hpp"
 
 using namespace es3;
 using namespace boost::filesystem;
-
-//Boost.Filesystem incompatibilities workaround
-static std::string get_file(const std::string &name)
-{
-	return name;
-}
 
 synchronizer::synchronizer(agenda_ptr agenda, const connection_data &to)
 	: agenda_(agenda), to_(to)

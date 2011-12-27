@@ -5,12 +5,12 @@
 #include <iostream>
 #include <openssl/md5.h>
 #include <stdint.h>
+#include "workaround.hpp"
 
 //Workaround for Boost bugs
 #undef BOOST_HAS_RVALUE_REFS
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
-#include <boost/filesystem.hpp>
 
 #define COMPRESSION_THRESHOLD 100000
 #define MIN_RATIO 0.9d
@@ -20,19 +20,6 @@
 
 using namespace es3;
 using namespace boost::interprocess;
-
-//Boost.Filesystem incompatibilities workaround
-#if BOOST_FILESYSTEM_VERSION!=3
-static std::string get_file(const std::string &name)
-{
-	return name;
-}
-#else
-static std::string get_file(const boost::filesystem3::path &name)
-{
-	return name.string();
-}
-#endif
 
 static file_mapping try_compress_and_open(const std::string &p,
 										  bool &compressed)
