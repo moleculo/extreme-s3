@@ -26,7 +26,7 @@ using namespace boost::filesystem;
 static bool should_compress(const std::string &p,
 							const mapped_region &region, uint64_t sz)
 {
-	return true;
+	return false;
 	std::string ext=get_file(path(p).extension());
 	if (ext==".gz" || ext==".zip" ||
 			ext==".tgz" || ext==".bz2" || ext==".7z")
@@ -144,6 +144,10 @@ public:
 	{
 		VLOG(2) << "Starting upload of a part " << num_ << " of "
 				<< remote_;
+
+		struct sched_param param;
+		param.sched_priority = num_*90/content_->num_parts_;
+		pthread_setschedparam(getpid(), SCHED_RR, &param);
 
 		size_t size = content_->region_.get_size();
 		size_t part_size = size/content_->num_parts_;
