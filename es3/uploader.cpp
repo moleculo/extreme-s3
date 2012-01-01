@@ -20,56 +20,26 @@
 
 using namespace es3;
 using namespace boost::interprocess;
+using namespace boost::filesystem;
 
-static file_mapping try_compress_and_open(const std::string &p,
-										  bool &compressed)
+static bool should_compress(const std::string &p,
+							const mapped_region &region, uint64_t sz)
 {
-	using namespace boost::filesystem;
-	compressed = false;
-
 	std::string ext=get_file(path(p).extension());
-	if (ext==".gz" || ext==".zip"
-			|| ext==".tgz" || ext==".bz2" || ext==".7z")
-		return file_mapping(p.c_str(), read_only);
+	if (ext==".gz" || ext==".zip" ||
+			ext==".tgz" || ext==".bz2" || ext==".7z")
+		return false;
 
-	uint64_t file_sz=file_size(p);
-	if (file_sz <= COMPRESSION_THRESHOLD)
-		return file_mapping(p.c_str(), read_only);
+	if (sz <= COMPRESSION_THRESHOLD)
+		return false;
 
 	//Check for GZIP magic
-	char magic[4]={0};
-	FILE *fl=fopen(p.c_str(), "rb");
-	fread(magic, 4, 1, fl);
-	fclose(fl);
+	assert(region.get_size()>4);
+	const unsigned char *magic =
+			reinterpret_cast<const unsigned char *>(region.get_address());
 	if (magic[0]==0x1F && magic[1] == 0x8B && magic[2]==0x8 && magic[3]==0x8)
-		return file_mapping(p.c_str(), read_only);
-
-	char tmp_file_buf[]={"/tmp/uncompressed-XXXXXX"};
-	mktemp(tmp_file_buf);
-	if (strlen(tmp_file_buf)==0)
-		return file_mapping(p.c_str(), read_only);
-	std::string tmp_file = tmp_file_buf;
-
-	//Ok, try to compress the file
-	create_symlink(system_complete(p), tmp_file); //Create temp symlink
-	ON_BLOCK_EXIT(unlink, tmp_file_buf); //Always delete the temp file
-
-	int ret=system(("pigz -n -T -f "+tmp_file).c_str());
-	if (WEXITSTATUS(ret)!=0) //Not found or other problems
-	{
-		int ret2=system(("gzip -n -f "+tmp_file).c_str());
-		if (WEXITSTATUS(ret2)!=0)
-			err(errFatal) << "Can't execute gzip/pigz on "<<p;
-	}
-
-	std::string gzipped = tmp_file+".gz";
-	ON_BLOCK_EXIT(unlink, gzipped.c_str()); //Always delete the temp file
-
-	if (file_size(gzipped) >= file_sz*MIN_RATIO)
-		return file_mapping(p.c_str(), read_only);
-
-	compressed = true;
-	return file_mapping(gzipped.c_str(), read_only);
+		return false;
+	return true;
 }
 
 struct es3::upload_content
@@ -80,6 +50,7 @@ struct es3::upload_content
 	size_t num_parts_;
 	size_t num_completed_;
 	std::vector<std::string> etags_;
+	time_t mtime_;
 
 	file_mapping mapping_;
 	mapped_region region_;
@@ -87,58 +58,65 @@ struct es3::upload_content
 
 void file_uploader::operator()(agenda_ptr agenda)
 {
-	//Create a file mapping.
-	bool compressed = false;
+	uint64_t file_sz=file_size(path_);
+	time_t mtime=last_write_time(path_);
+
+	//Check the modification date of the file locally and on the
+	//remote side
+	s3_connection up(conn_);
+	std::pair<time_t, uint64_t> mod=up.find_mtime_and_size(remote_);
+	if (mod.first==mtime && mod.second==file_sz)
+		return; //TODO: add an optional MD5 check?
+
+	//Woohoo! We need to upload the file.
 	upload_content_ptr up_data(new upload_content());
+	up_data->mtime_ = mtime;
+	up_data->mapping_ = file_mapping(path_.c_str(), read_only);
 
-	up_data->mapping_ = std::move(try_compress_and_open(path_, compressed));
-
-	//Check for empty files
-	offset_t sz;
+	//Check for empty files - we must do it here explicitely because mapping
+	//a zero-length file causes an exception to be thrown
+	offset_t region_size;
 	boost::interprocess::detail::get_file_size(
-				up_data->mapping_.get_mapping_handle().handle, sz);
-	if (sz==0)
+				up_data->mapping_.get_mapping_handle().handle, region_size);
+	if (region_size==0)
 	{
 //		start_upload("", "", 0, false);
 		//We do not upload empty files.
 		//TODO: ??
 		return;
 	}
+
 	//Map the whole file in this process
-	up_data->region_ = std::move(mapped_region(up_data->mapping_,read_only));
+	up_data->region_ = mapped_region(up_data->mapping_,read_only);
 
-	VLOG(2) << "Checking upload of " << path_ << " as "
+	VLOG(2) << "Starting upload of " << path_ << " as "
 			  << remote_;
-
-	//Compute MD5
-	unsigned char res[MD5_DIGEST_LENGTH+1]={0};
-	MD5((const unsigned char*)up_data->region_.get_address(),
-		up_data->region_.get_size(), res);
-	std::string b64_md5=base64_encode((const char*)res, MD5_DIGEST_LENGTH);
-
-	if (etag_.empty())
+	if (region_size<=MIN_PART_SIZE*2)
 	{
-		start_upload(agenda, b64_md5, up_data, compressed);
+		simple_upload(agenda, up_data);
 	} else
 	{
-		std::string md5_web;
-		md5_web.push_back('\"');
-		md5_web.append(tobinhex(res, MD5_DIGEST_LENGTH));
-		md5_web.push_back('\"');
-		if (md5_web == etag_)
-			return;
-
-		if (etag_.find('-')!=std::string::npos)
-		{
-			//Multipart upload. Get MD5 from metadata
-			s3_connection up(conn_, "HEAD", remote_);
-			std::string md5=up.find_md5();
-			if (md5 == b64_md5)
-				return;
-		}
-
-		start_upload(agenda, b64_md5, up_data, compressed);
+		//Rest in pieces!
+		bool do_compress = should_compress(path_, up_data->region_,
+										   region_size);
+		start_upload(agenda, up_data, do_compress);
 	}
+}
+
+void file_uploader::simple_upload(agenda_ptr ag, upload_content_ptr content)
+{
+	//Simple upload
+	header_map_t hmap;
+	hmap["x-amz-meta-compressed"] = "false";
+	hmap["Content-Type"] = "application/x-binary";
+	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
+	s3_connection up(conn_);
+
+	std::pair<size_t, std::string> res=up.upload_data(remote_,
+					content->region_.get_address(),
+					content->region_.get_size(),
+					false, hmap);
+	assert(res.first==content->region_.get_size());
 }
 
 class part_upload_task : public sync_task
@@ -148,12 +126,15 @@ class part_upload_task : public sync_task
 	const connection_data conn_;
 	const std::string remote_;
 	upload_content_ptr content_;
+	bool compressed_;
 public:
 	part_upload_task(size_t num, const std::string &upload_id,
 					 const connection_data &conn,
-					 const std::string &remote, upload_content_ptr content)
+					 const std::string &remote, upload_content_ptr content,
+					 bool compressed)
 		: num_(num), upload_id_(upload_id),
-		  conn_(conn), remote_(remote), content_(content)
+		  conn_(conn), remote_(remote), content_(content),
+		  compressed_(compressed)
 	{
 	}
 
@@ -162,88 +143,104 @@ public:
 		VLOG(2) << "Starting upload of a part " << num_ << " of "
 				<< remote_;
 
-		header_map_t hmap;
-		hmap["Content-Type"] = "application/x-binary";
-		s3_connection up(conn_, "PUT", remote_+
-						 "?partNumber="+int_to_string(num_+1)
-						 +"&uploadId="+upload_id_,
-						 hmap);
-
 		size_t size = content_->region_.get_size();
 		size_t part_size = size/content_->num_parts_;
 		size_t offset = part_size*num_;
 		size_t ln = size-offset;
 		if (ln>part_size)
 			ln=part_size;
-
 		unsigned char *data=reinterpret_cast<unsigned char *>(
 					content_->region_.get_address());
-		std::string etag=up.upload_data(data+offset, ln, num_, upload_id_);
+
+		std::string part_path=remote_+
+				"?partNumber="+int_to_string(num_+1)
+				+"&uploadId="+upload_id_;
+		header_map_t hmap;
+		hmap["Content-Type"] = "application/x-binary";
+
+		std::string etag;
+		if (!compressed_)
+		{
+			s3_connection up(conn_);
+			std::pair<size_t,std::string> res=up.upload_data(part_path,
+						data+offset, ln, false, hmap);
+			etag = res.second;
+		} else
+		{
+			//That's where it gets interesting :)
+			std::string scratch_path="/.scratch"+remote_+"-"+
+					int_to_string(num_+1);
+
+			s3_connection up(conn_);
+			std::pair<size_t,std::string> res=up.upload_data(scratch_path,
+						data+offset, ln, true, hmap);
+
+			s3_connection remover(conn_);
+			ON_BLOCK_EXIT_OBJ(remover, &s3_connection::read_fully_def,
+							  std::string("DELETE"), scratch_path);
+
+			s3_connection mover(conn_);
+			header_map_t hmap2;
+			hmap2["x-amz-copy-source"] =
+					conn_.bucket_+scratch_path;
+			hmap2["x-amz-copy-source-range"] =
+					"bytes=0-"+int_to_string(res.first);
+			std::string mres=mover.read_fully("PUT", part_path, hmap2);
+			std::cerr << mres << std::endl;
+		}
+
 		if (etag.empty())
-			err(errFatal) << "Failed to upload a part " << num_;
+			err(errWarn) << "Failed to upload a part " << num_;
+		VLOG(2) << "Uploaded part " << num_ << " of "<< remote_
+				<< " with etag=" << etag <<".";
 
-		VLOG(2) << "Uploaded part " << num_ << " of "
-				<< remote_ << " with etag=" << etag << ".";
-
+		//Check if the upload is completed
 		guard_t g(content_->lock_);
 		content_->num_completed_++;
 		content_->etags_.at(num_) = etag;
 		if (content_->num_completed_ == content_->num_parts_)
 		{
 			//We've completed the upload!
-			header_map_t hmap;
-			s3_connection up(conn_, "POST", remote_+
-							 "?uploadId="+upload_id_, hmap);
-			up.complete_multipart(content_->etags_);
+			s3_connection up(conn_);
+			up.complete_multipart(remote_+"?uploadId="+upload_id_,
+								  content_->etags_);
 		}
 	}
 };
 
-void file_uploader::start_upload(agenda_ptr ag, const std::string &md5,
+void file_uploader::start_upload(agenda_ptr ag,
 								 upload_content_ptr content, bool compressed)
 {
 	VLOG(2) << "Starting upload of " << path_ << " as "
-			<< remote_ << ", MD5: "<< md5;
+			<< remote_ ;
 
 	size_t size=content->region_.get_size();
-	if (size>MIN_PART_SIZE)
-	{
-		size_t number_of_parts = (size+MIN_PART_SIZE/2)/MIN_PART_SIZE;
-		if (number_of_parts>MAX_PART_NUM)
-			number_of_parts = MAX_PART_NUM;
-		content->num_parts_ = number_of_parts;
-		content->etags_.resize(number_of_parts);
 
-		header_map_t hmap;
-		hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
-		hmap["x-amz-meta-md5"] = md5;
-		hmap["Content-Type"] = "application/x-binary";
-		s3_connection up(conn_, "POST", remote_+"?uploads", hmap);
-		std::string upload_id=up.initiate_multipart();
+	size_t number_of_parts = (size+MIN_PART_SIZE/2)/MIN_PART_SIZE;
+	if (number_of_parts>MAX_PART_NUM)
+		number_of_parts = MAX_PART_NUM;
+	content->num_parts_ = number_of_parts;
+	content->etags_.resize(number_of_parts);
 
-		for(size_t f=0;f<number_of_parts;++f)
-		{
-			boost::shared_ptr<part_upload_task> task(
-						new part_upload_task(f, upload_id,
-											 conn_, remote_, content));
-			ag->schedule(task);
-		}
-	} else
+	header_map_t hmap;
+	hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
+	hmap["Content-Type"] = "application/x-binary";
+	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
+	s3_connection up(conn_);
+	std::string upload_id=up.initiate_multipart(remote_, hmap);
+
+	for(size_t f=0;f<number_of_parts;++f)
 	{
-		header_map_t hmap;
-		hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
-		hmap["Content-MD5"] = md5;
-		hmap["Content-Type"] = "application/x-binary";
-		s3_connection up(conn_, "PUT", remote_, hmap);
-		up.upload_data(content->region_.get_address(),
-					   content->region_.get_size());
+		boost::shared_ptr<part_upload_task> task(
+					new part_upload_task(f, upload_id,
+										 conn_, remote_, content, compressed));
+		ag->schedule(task);
 	}
 }
 
 void file_deleter::operator()(agenda_ptr agenda)
 {
 	VLOG(2) << "Removing " << remote_;
-	header_map_t hmap;
-	s3_connection up(conn_, "DELETE", remote_, hmap);
-	up.read_fully();
+	s3_connection up(conn_);
+	up.read_fully("DELETE", remote_);
 }

@@ -55,34 +55,46 @@ namespace es3 {
 	class s3_connection
 	{
 		CURL *curl_;
-		std::string path_;
 		const connection_data conn_data_;
-		const header_map_t opts_;
 		struct curl_slist *header_list_;
 	public:
-		s3_connection(const connection_data &conn_data,
-					  const std::string &verb,
-					  const std::string &path,
-					  const header_map_t &opts = header_map_t());
+		s3_connection(const connection_data &conn_data);
+//					  const header_map_t &opts = header_map_t());
 		~s3_connection();
 
-		std::string read_fully();
-		file_map_t list_files(const std::string &prefix);
-		std::string upload_data(const void *addr, size_t size,
-								size_t part_num=0,
-								const std::string &uploadId="");
+		std::string read_fully_def(const std::string &verb,
+							   const std::string &path)
+		{
+			return read_fully(verb, path, header_map_t());
+		}
 
-		std::string initiate_multipart();
-		std::string complete_multipart(
+		std::string read_fully(const std::string &verb,
+							   const std::string &path,
+							   const header_map_t &opts=header_map_t());
+		file_map_t list_files(const std::string &path,
+							  const std::string &prefix);
+		std::pair<size_t,std::string> upload_data(const std::string &path,
+			const void *addr, size_t size, bool do_compress,
+			const header_map_t& opts);
+
+		std::string initiate_multipart(const std::string &path,
+									   const header_map_t &opts);
+		std::string complete_multipart(const std::string &path,
 			const std::vector<std::string> &etags);
-		std::string find_md5();
+		std::pair<time_t, uint64_t> find_mtime_and_size(
+			const std::string &path);
 
 	private:
+		void prepare(const std::string &verb,
+				  const std::string &path,
+				  const header_map_t &opts=header_map_t());
+
 		std::string sign(const std::string &str);
 		struct curl_slist* authenticate_req(struct curl_slist *,
-				const std::string &verb, const std::string &path);
+				const std::string &verb, const std::string &path,
+				const header_map_t &opts);
 
-		void set_url(const std::string &args);
+		void set_url(const std::string &path, const std::string &args);
 		void deconstruct_file(file_map_t &res, const std::string &name,
 							  const std::string &etag,
 							  const std::string &size);

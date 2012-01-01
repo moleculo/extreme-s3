@@ -2,10 +2,12 @@
 #include <curl/curl.h>
 #include "errors.h"
 #include <openssl/hmac.h>
+#include <openssl/md5.h>
 #include <tinyxml.h>
 #include <iostream>
 #include <assert.h>
 #include <strings.h>
+#include <zlib.h>
 #include "scope_guard.h"
 
 using namespace es3;
@@ -36,79 +38,86 @@ std::string escape(const std::string &str)
 	return std::string(res);
 }
 
-s3_connection::s3_connection(const connection_data &conn_data,
-							 const std::string &verb,
-							 const std::string &path_raw,
-							 const header_map_t &opts)
-	: curl_(curl_easy_init()), conn_data_(conn_data),
-	  opts_(opts), header_list_(), path_(path_raw)
+s3_connection::s3_connection(const connection_data &conn_data)
+	: curl_(curl_easy_init()), conn_data_(conn_data), header_list_()
 {
 	if (!curl_)
 		err(errFatal) << "can't init CURL";
-	if (path_.empty())
-		path_.append("/");
+}
+
+void s3_connection::prepare(const std::string &verb,
+		  const std::string &path,
+		  const header_map_t &opts)
+{
+	std::string cur_path=path;
+	if (cur_path.empty())
+		cur_path.append("/");
 
 	//Set HTTP verb
 	curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, verb.c_str()) | die;
 
+	if (header_list_)
+	{
+		curl_slist_free_all(header_list_);
+		header_list_ = 0;
+	}
+
 	//Add custom headers
 	for(auto iter = opts.begin(), iend=opts.end(); iter!=iend; ++iter)
 	{
-		if (strcasecmp(iter->first.c_str(), "date")==0)
-			continue; //Silently skip the date header
-
 		std::string header = iter->first + ": " + iter->second;
 		header_list_ = curl_slist_append(header_list_, header.c_str());
 	}
 
-	header_list_ = authenticate_req(header_list_, verb, path_);
+	header_list_ = authenticate_req(header_list_, verb, cur_path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
+	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 65536*4);
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
-	set_url("");
+	set_url(cur_path, "");
 }
 
-void s3_connection::set_url(const std::string &args)
+void s3_connection::set_url(const std::string &path, const std::string &args)
 {
+	std::string cur_path=path;
+	if (cur_path.empty())
+		cur_path.append("/");
+
 	std::string url = conn_data_.use_ssl_?"https://" : "http://";
 	url.append(conn_data_.bucket_).append(".s3.amazonaws.com");
-	url.append(path_);
+	url.append(cur_path);
 	url.append(args);
 	curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()) | die;
 }
 
 curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
-	const std::string &verb, const std::string &path)
+	const std::string &verb, const std::string &path, const header_map_t &opts)
 {
+	header_map_t my_opts = opts;
+
 	//Make a 'Date' header
-	time_t rawtime = time (NULL);
-	struct tm * timeinfo = gmtime(&rawtime);
-	char date_header[80] = {0};
-	strftime(date_header, 80, "%a, %d %b %Y %H:%M:%S +0000", timeinfo);
+	std::string date_header=format_time(time(NULL));
+	my_opts["x-amz-date"] = date_header;
 	header_list = curl_slist_append(header_list,
-									 (std::string("Date: ")+date_header).c_str());
+		(std::string("x-amz-date: ")+date_header).c_str());
 
 	std::string amz_headers;
-	for(auto iter = opts_.begin(); iter!=opts_.end();++iter)
+	for(auto iter = my_opts.begin(); iter!=my_opts.end();++iter)
 	{
 		std::string lower_hdr = iter->first;
 		std::transform(lower_hdr.begin(), lower_hdr.end(),
 					   lower_hdr.begin(), ::tolower);
-		if (lower_hdr.find("x-amz-meta")==0)
+		if (lower_hdr.find("x-amz")==0)
 			amz_headers.append(lower_hdr).append(":")
 					.append(iter->second).append("\n");
 	}
 
 	//Signature
-//	size_t idx = path.find_first_of("?&");
-	std::string canonic = path;
-//	if (idx!=std::string::npos)
-//		canonic = canonic.substr(0, idx);
-	std::string canonicalizedResource="/"+conn_data_.bucket_+canonic;
+	std::string canonicalizedResource="/"+conn_data_.bucket_+path;
 	std::string stringToSign = verb + "\n" +
-		try_get(opts_, "content-md5") + "\n" +
-		try_get(opts_, "content-type") + "\n" +
-		date_header + "\n" +
+		try_get(opts, "content-md5") + "\n" +
+		try_get(opts, "content-type") + "\n" +
+		/*date_header +*/ "\n" +
 		amz_headers +
 		canonicalizedResource;
 	std::string sign_res=sign(stringToSign) ;
@@ -150,9 +159,12 @@ static size_t string_appender(const char *ptr,
 	return size*nmemb;
 }
 
-std::string s3_connection::read_fully()
+std::string s3_connection::read_fully(const std::string &verb,
+									  const std::string &path,
+									  const header_map_t &opts)
 {
 	std::string res;
+	prepare(verb, path, opts);
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &res);
 	curl_easy_perform(curl_) | die;
@@ -160,19 +172,20 @@ std::string s3_connection::read_fully()
 	return res;
 }
 
-file_map_t s3_connection::list_files(const std::string &prefix)
+file_map_t s3_connection::list_files(const std::string &path,
+	const std::string &prefix)
 {
 	file_map_t res;
-
 	std::string marker;
 	while(true)
 	{
+		std::string cur_path;
 		if (prefix.empty())
-			set_url("?marker="+escape(marker));
+			cur_path=path+"?marker="+escape(marker);
 		else
-			set_url("?prefix="+escape(prefix)+"&marker="+escape(marker));
+			cur_path=path+"?prefix="+escape(prefix)+"&marker="+escape(marker);
 
-		std::string list=read_fully();
+		std::string list=read_fully("GET", cur_path);
 		TiXmlDocument doc;
 		doc.Parse(list.c_str()); check(doc);
 		TiXmlHandle docHandle(&doc);
@@ -264,26 +277,8 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	(*cur_pos)[cur_name] = fl;
 }
 
-struct read_data
-{
-	const char *buf;
-	size_t off_, total_;
-};
-
-size_t read_func(char *bufptr, size_t size, size_t nitems, void *userp)
-{
-	read_data *data = (read_data*) userp;
-	size_t tocopy = std::min(data->total_-data->off_, size*nitems);
-	if (tocopy!=0)
-	{
-		memcpy(bufptr, data->buf+data->off_, tocopy);
-		data->off_+=tocopy;
-	}
-	return tocopy;
-}
-
-static size_t find_header(void *ptr, size_t size, size_t nmemb, void *userdata,
-				   const std::string &header_name)
+static std::string find_header(void *ptr, size_t size, size_t nmemb,
+							   const std::string &header_name)
 {
 	std::string line(reinterpret_cast<char*>(ptr), size*nmemb);
 	std::string line_raw(reinterpret_cast<char*>(ptr), size*nmemb);
@@ -295,69 +290,222 @@ static size_t find_header(void *ptr, size_t size, size_t nmemb, void *userdata,
 		std::string name=trim(line.substr(0, pos));
 		std::string val=trim(line_raw.substr(pos+1));
 		if (name==header_name)
-			reinterpret_cast<std::string*>(userdata)->assign(val);
+			return val;
 	}
+
+	return "";
+}
+
+static size_t find_mtime(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	std::pair<time_t, uint64_t> *pair=
+			reinterpret_cast<std::pair<time_t,uint64_t>*>(userdata);
+
+	std::string mtime=find_header(ptr, size, nmemb,
+								  "x-amz-meta-last-modified");
+	if (!mtime.empty())
+	{
+		int64_t tm2 = atoll(mtime.c_str());
+		if (tm2 < pair->first)
+			pair->first=tm2;
+	}
+
+	std::string ln=find_header(ptr, size, nmemb, "content-length");
+	if (!ln.empty())
+		pair->second = atoll(ln.c_str());
 
 	return size*nmemb;
 }
 
-static size_t find_md5(void *ptr, size_t size, size_t nmemb, void *userdata)
-{
-	return find_header(ptr, size, nmemb, userdata, "x-amz-meta-md5");
-}
-
 static size_t find_etag(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
-	return find_header(ptr, size, nmemb, userdata, "etag");
+	std::string etag=find_header(ptr, size, nmemb, "etag");
+	if (!etag.empty())
+		reinterpret_cast<std::string*>(userdata)->assign(etag);
+	return size*nmemb;
 }
 
-std::string s3_connection::find_md5()
+std::pair<time_t, uint64_t> s3_connection::find_mtime_and_size(
+	const std::string &path)
 {
-	set_url("");
-	std::string result;
-	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &::find_md5);
+	std::pair<time_t, uint64_t> result={time(NULL), 0};
+	prepare("HEAD", path);
+	//last-modified
+	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &::find_mtime);
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &result);
 	curl_easy_setopt(curl_, CURLOPT_NOBODY, 1);
 	curl_easy_perform(curl_) | die;
 	return result;
 }
 
-std::string s3_connection::upload_data(const void *addr, size_t size,
-									   size_t part_num,
-									   const std::string &uploadId)
+class read_data
 {
-	std::string result;
+	const char *buf_;
+	size_t raw_size_;
+	bool do_compression_;
 
-	//Set data
-	if (uploadId.empty())
-		set_url("");
-	else
+	size_t max_total_;
+	size_t written_, good_data_written_;
+
+	z_stream c_stream_;
+	bool is_compressing_;
+
+	size_t compressed_size_;
+	MD5_CTX md5_ctx;
+public:
+	read_data(const char *buf, size_t sz, bool do_compression) :
+		buf_(buf), raw_size_(sz), do_compression_(do_compression),
+		written_(), is_compressing_(true), compressed_size_(),
+		good_data_written_()
 	{
-		set_url("");
-		curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
-		curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &result);
+		MD5_Init(&md5_ctx);
+
+		//http://www.gzip.org/zlib/zlib_tech.html
+		//The maximum expansion factor for GZIP is 5 bytes for each 16Kb block
+		//plus 6 bytes for the GZIP header. We generously bump it to 1 page
+		//size just in case.
+		max_total_= do_compression?
+				raw_size_ + 4096 + (raw_size_/16384)*5 : raw_size_;
+
+		c_stream_={0}; //compression stream
+		c_stream_.zalloc = (alloc_func)0;
+		c_stream_.zfree = (free_func)0;
+		c_stream_.opaque = (voidpf)0;
+		c_stream_.next_in = (Bytef*)buf;
+		c_stream_.avail_in = raw_size_;
+
+		if (do_compression)
+		{
+			int err = deflateInit2(&c_stream_, 8, Z_DEFLATED,
+							   15|16, //15 window bits | GZIP
+							   8,
+							   Z_DEFAULT_STRATEGY);
+			if (err!=Z_OK)
+				throw std::bad_exception();
+		}
 	}
 
-	read_data data = {(const char*)addr, 0, size};
-//	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+	size_t good_data_written() const
+	{
+		return good_data_written_;
+	}
+
+	std::string get_md5()
+	{
+		unsigned char md[MD5_DIGEST_LENGTH+1]={0};
+		MD5_Final(md, &md5_ctx);
+		return tobinhex(md, MD5_DIGEST_LENGTH);
+	}
+
+	~read_data()
+	{
+		//Do not check for errors here, because we might get here with
+		//unwritten data in case of network connectivity problems.
+		if (do_compression_)
+			deflateEnd(&c_stream_);
+	}
+
+	uint64_t max_total_size() const
+	{
+		return max_total_;
+	}
+
+	static size_t read_func(char *bufptr, size_t size,
+							size_t nitems, void *userp)
+	{
+		return reinterpret_cast<read_data*>(userp)->do_read(
+					bufptr, size*nitems);
+	}
+
+	size_t do_read(char *bufptr, size_t size)
+	{
+		if (!do_compression_)
+			return simple_read(bufptr, size);
+
+		if (!is_compressing_)
+		{
+			//We've overshot, just return the zeroes
+			size_t remaining = max_total_-written_;
+			size_t to_zero = std::min(size, remaining);
+			memset(bufptr, 0, to_zero);
+			written_+= to_zero;
+			MD5_Update(&md5_ctx, bufptr, to_zero);
+			return to_zero;
+		}
+
+		c_stream_.avail_out=size;
+		c_stream_.next_out = (Bytef*)bufptr;
+
+		if (c_stream_.avail_in==0)
+		{
+			//We're writing the epilogue
+			int err=deflate(&c_stream_, Z_FINISH);
+			if (err==Z_STREAM_END)
+				is_compressing_ = false;
+			else if (err<0)
+				abort(); //This can't happen
+		} else
+		{
+			int err=deflate(&c_stream_, Z_NO_FLUSH);
+			if (err != Z_OK)
+				abort(); //This can't happen
+		}
+
+		size_t consumed = size - c_stream_.avail_out;
+		MD5_Update(&md5_ctx, bufptr, consumed);
+		written_ += consumed;
+		good_data_written_+=consumed;
+		return consumed;
+	}
+
+	size_t simple_read(char *bufptr, size_t size)
+	{
+		size_t tocopy = std::min(raw_size_-written_, size);
+		if (tocopy!=0)
+		{
+			memcpy(bufptr, buf_+written_, tocopy);
+			MD5_Update(&md5_ctx, bufptr, tocopy);
+			good_data_written_+=tocopy;
+			written_+=tocopy;
+		}
+		return tocopy;
+	}
+};
+
+std::pair<size_t,std::string> s3_connection::upload_data(
+	const std::string &path,
+	const void *addr, size_t size, bool do_compress,
+	const header_map_t& opts)
+{
+	prepare("PUT", path, opts);
+
+	std::string etag;
+	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
+	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
+
+	read_data data((const char*)addr, size, do_compress);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(size));
-	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_func);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, data.max_total_size());
+	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
 
-	std::string read_data;
-	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
-	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &read_data);
+//	std::string result;
+//	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
+//	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
-	curl_easy_perform(curl_);
+	curl_easy_perform(curl_) | die;
 
-	return result;
+	if (strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))
+		abort(); //Data corruption. This SHOULD NOT happen!
+
+	return std::make_pair(data.good_data_written(), etag);
 }
 
-std::string s3_connection::initiate_multipart()
+std::string s3_connection::initiate_multipart(
+	const std::string &path, const header_map_t &opts)
 {
-	set_url("");
-	std::string list=read_fully();
+	set_url(path, "");
+	std::string list=read_fully("POST", path+"?uploads", opts);
 	TiXmlDocument doc;
 	doc.Parse(list.c_str()); check(doc);
 	TiXmlHandle docHandle(&doc);
@@ -371,7 +519,7 @@ std::string s3_connection::initiate_multipart()
 	return node->Value();
 }
 
-std::string s3_connection::complete_multipart(
+std::string s3_connection::complete_multipart(const std::string &path,
 	const std::vector<std::string> &etags)
 {
 	std::string data="<CompleteMultipartUpload>";
@@ -388,12 +536,13 @@ std::string s3_connection::complete_multipart(
 	}
 	data.append("</CompleteMultipartUpload>");
 
-	set_url("");
+	set_url(path, "");
 
-	read_data data_params = {(const char*)&data[0], 0, data.size()};
+	read_data data_params(data.c_str(), data.length(), false);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(data.size()));
-	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_func);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE,
+					 data_params.max_total_size());
+	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data_params);
 
 	std::string read_data;

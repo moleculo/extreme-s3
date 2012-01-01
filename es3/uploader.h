@@ -27,8 +27,9 @@ namespace es3 {
 
 		virtual void operator()(agenda_ptr agenda);
 	private:
-		void start_upload(agenda_ptr ag, const std::string &md5,
+		void start_upload(agenda_ptr ag,
 						  upload_content_ptr content, bool compressed);
+		void simple_upload(agenda_ptr ag, upload_content_ptr content);
 	};
 
 	class file_deleter : public sync_task

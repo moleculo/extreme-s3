@@ -61,6 +61,7 @@ namespace es3 {
 	ES3LIB_PUBLIC std::string trim(const std::string &str);
 
 	ES3LIB_PUBLIC std::string tobinhex(const unsigned char* data, size_t ln);
+	ES3LIB_PUBLIC std::string format_time(time_t time);
 
 	class logger
 	{

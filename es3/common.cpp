@@ -90,3 +90,11 @@ std::string es3::tobinhex(const unsigned char* data, size_t ln)
 	}
 	return res;
 }
+
+std::string es3::format_time(time_t time)
+{
+	struct tm * timeinfo = gmtime(&time);
+	char date_header[80] = {0};
+	strftime(date_header, 80, "%a, %d %b %Y %H:%M:%S +0000", timeinfo);
+	return date_header;
+}
