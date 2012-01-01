@@ -371,6 +371,7 @@ public:
 		if (do_compression)
 		{
 			int err;
+			VLOG(2)<<"Estimating size, raw size=" << raw_size_;
 			to_write_ = calc_size(false);
 			if (to_write_<min_size)
 			{
@@ -379,6 +380,7 @@ public:
 			}
 			else
 				init_deflate(&c_stream_, false);
+			VLOG(2)<<"Size is "<<to_write_ <<", raw size=" << raw_size_;
 		} else
 		{
 			to_write_ = raw_size_;
