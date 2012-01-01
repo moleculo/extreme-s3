@@ -185,7 +185,13 @@ file_map_t s3_connection::list_files(const std::string &path,
 		else
 			cur_path=path+"?prefix="+escape(prefix)+"&marker="+escape(marker);
 
-		std::string list=read_fully("GET", cur_path);
+		std::string list;
+		prepare("GET", path);
+		set_url(cur_path, "");
+		curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
+		curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &list);
+		curl_easy_perform(curl_) | die;
+
 		TiXmlDocument doc;
 		doc.Parse(list.c_str()); check(doc);
 		TiXmlHandle docHandle(&doc);
