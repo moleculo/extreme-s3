@@ -15,7 +15,7 @@
 #define COMPRESSION_THRESHOLD 10000000
 #define MIN_RATIO 0.9d
 
-#define MIN_PART_SIZE 15242880
+#define MIN_PART_SIZE 5242880
 #define MIN_ALLOWED_PART_SIZE 5242880
 #define MAX_PART_NUM 200
 
@@ -26,6 +26,7 @@ using namespace boost::filesystem;
 static bool should_compress(const std::string &p,
 							const mapped_region &region, uint64_t sz)
 {
+	return true;
 	std::string ext=get_file(path(p).extension());
 	if (ext==".gz" || ext==".zip" ||
 			ext==".tgz" || ext==".bz2" || ext==".7z")
