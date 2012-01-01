@@ -15,8 +15,8 @@
 #define COMPRESSION_THRESHOLD 10000000
 #define MIN_RATIO 0.9d
 
-#define MIN_PART_SIZE 5242880
-#define MIN_ALLOWED_PART_SIZE 15242880
+#define MIN_PART_SIZE 15242880
+#define MIN_ALLOWED_PART_SIZE 5242880
 #define MAX_PART_NUM 200
 
 using namespace es3;
@@ -162,7 +162,8 @@ public:
 		s3_connection up(conn_);
 		std::pair<size_t,std::string> res=up.upload_data(part_path,
 					data+offset, ln, compressed_, MIN_ALLOWED_PART_SIZE, hmap);
-		assert(res.first>=MIN_ALLOWED_PART_SIZE);
+		assert(res.first>=MIN_ALLOWED_PART_SIZE ||
+			   num_==content_->num_parts_-1);
 		std::string etag = res.second;
 
 		if (etag.empty())
