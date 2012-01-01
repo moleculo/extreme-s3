@@ -169,13 +169,17 @@ public:
 
 		if (etag.empty())
 			err(errWarn) << "Failed to upload a part " << num_;
-		VLOG(2) << "Uploaded part " << num_ << " of "<< remote_
-				<< " with etag=" << etag <<".";
 
 		//Check if the upload is completed
 		guard_t g(content_->lock_);
 		content_->num_completed_++;
 		content_->etags_.at(num_) = etag;
+
+		VLOG(2) << "Uploaded part " << num_ << " of "<< remote_
+				<< " with etag=" << etag
+				<< ", total=" << content_->num_parts_
+				<< ", sent=" << content_->num_completed_ << ".";
+
 		if (content_->num_completed_ == content_->num_parts_)
 		{
 			VLOG(2) << "Assembling "<< remote_ <<".";
