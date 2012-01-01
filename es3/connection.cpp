@@ -523,11 +523,12 @@ std::pair<size_t,std::string> s3_connection::upload_data(
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
 
-//	std::string result;
-//	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
-//	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
+	std::string result;
+	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
+	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
 	curl_easy_perform(curl_) | die;
+	std::cerr << result << std::endl;
 
 	if (!etag.empty() &&
 			strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))

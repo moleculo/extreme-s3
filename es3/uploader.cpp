@@ -177,9 +177,10 @@ public:
 		content_->etags_.at(num_) = etag;
 		if (content_->num_completed_ == content_->num_parts_)
 		{
+			VLOG(2) << "Assembling "<< remote_ <<".";
 			//We've completed the upload!
-			s3_connection up(conn_);
-			up.complete_multipart(remote_+"?uploadId="+upload_id_,
+			s3_connection up2(conn_);
+			up2.complete_multipart(remote_+"?uploadId="+upload_id_,
 								  content_->etags_);
 		}
 	}
