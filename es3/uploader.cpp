@@ -146,7 +146,8 @@ public:
 				<< remote_;
 
 		struct sched_param param;
-		param.sched_priority = 1+num_*90/content_->num_parts_;
+		param.sched_priority = 1+
+				(content_->num_completed_)*90/content_->num_parts_;
 		pthread_setschedparam(pthread_self(), SCHED_RR, &param);
 
 		size_t size = content_->region_.get_size();
