@@ -344,8 +344,8 @@ class read_data
 	size_t raw_size_;
 	bool do_compression_;
 
-	size_t max_total_;
-	size_t written_, good_data_written_;
+	size_t to_write_;
+	size_t written_;
 
 	z_stream c_stream_;
 	bool is_compressing_;
@@ -353,41 +353,85 @@ class read_data
 	size_t compressed_size_;
 	MD5_CTX md5_ctx;
 public:
-	read_data(const char *buf, size_t sz, bool do_compression) :
+	read_data(const char *buf, size_t sz, bool do_compression,
+			  size_t min_size) :
 		buf_(buf), raw_size_(sz), do_compression_(do_compression),
-		written_(), is_compressing_(true), compressed_size_(),
-		good_data_written_()
+		written_(), is_compressing_(true), compressed_size_()
 	{
 		MD5_Init(&md5_ctx);
 
-		//http://www.gzip.org/zlib/zlib_tech.html
-		//The maximum expansion factor for GZIP is 5 bytes for each 16Kb block
-		//plus 6 bytes for the GZIP header. We generously bump it to 1 page
-		//size just in case.
-		max_total_= do_compression?
-				raw_size_ + 4096 + (raw_size_/16384)*5 : raw_size_;
-
 		c_stream_={0}; //compression stream
-		c_stream_.zalloc = (alloc_func)0;
-		c_stream_.zfree = (free_func)0;
-		c_stream_.opaque = (voidpf)0;
-		c_stream_.next_in = (Bytef*)buf;
-		c_stream_.avail_in = raw_size_;
 
 		if (do_compression)
 		{
-			int err = deflateInit2(&c_stream_, 8, Z_DEFLATED,
-							   15|16, //15 window bits | GZIP
-							   8,
-							   Z_DEFAULT_STRATEGY);
-			if (err!=Z_OK)
-				throw std::bad_exception();
+			int err;
+			to_write_ = calc_size(false);
+			if (to_write_<min_size)
+			{
+				init_deflate(&c_stream_, true);
+				to_write_ = calc_size(true);
+			}
+			else
+				init_deflate(&c_stream_, false);
+		} else
+		{
+			to_write_ = raw_size_;
 		}
 	}
 
-	size_t good_data_written() const
+	void init_deflate(z_stream *stream, bool nozip)
 	{
-		return good_data_written_;
+		int err;
+		stream->next_in = (Bytef*)buf_;
+		stream->avail_in = raw_size_;
+		if (nozip)
+		{
+			//No compression
+			err=deflateInit2(stream, 0, Z_DEFLATED,
+						   15|16, //15 window bits | GZIP
+						   8,
+						   Z_DEFAULT_STRATEGY);
+		} else
+		{
+			err=deflateInit2(stream, 8, Z_DEFLATED,
+						   15|16, //15 window bits | GZIP
+						   8,
+						   Z_DEFAULT_STRATEGY);
+		}
+		if (err!=Z_OK)
+			throw std::bad_exception();
+	}
+
+	size_t calc_size(bool no_zip)
+	{
+		z_stream stream={0}; //compression stream
+		init_deflate(&stream, no_zip);
+		ON_BLOCK_EXIT(&deflateEnd, &stream);
+
+		char buf[16384];
+		size_t consumed=0;
+		while(true)
+		{
+			stream.avail_out=16384;
+			stream.next_out = (Bytef*)buf;
+			int err;
+			if (c_stream_.avail_in==0)
+				err=deflate(&stream, Z_FINISH); //We're writing the epilogue
+			else
+				err=deflate(&stream, Z_NO_FLUSH);
+			consumed += 16384 - stream.avail_out;
+
+			if (err==Z_STREAM_END)
+				break;
+			else if (err<0)
+				abort(); //This can't happen
+		}
+		return consumed;
+	}
+
+	uint64_t to_write() const
+	{
+		return to_write_;
 	}
 
 	std::string get_md5()
@@ -405,11 +449,6 @@ public:
 			deflateEnd(&c_stream_);
 	}
 
-	uint64_t max_total_size() const
-	{
-		return max_total_;
-	}
-
 	static size_t read_func(char *bufptr, size_t size,
 							size_t nitems, void *userp)
 	{
@@ -422,20 +461,11 @@ public:
 		if (!do_compression_)
 			return simple_read(bufptr, size);
 
-		if (!is_compressing_)
-		{
-			//We've overshot, just return the zeroes
-			size_t remaining = max_total_-written_;
-			size_t to_zero = std::min(size, remaining);
-			memset(bufptr, 0, to_zero);
-			written_+= to_zero;
-			MD5_Update(&md5_ctx, bufptr, to_zero);
-			return to_zero;
-		}
+		assert(is_compressing_);
+		//We can't overshot
 
 		c_stream_.avail_out=size;
 		c_stream_.next_out = (Bytef*)bufptr;
-
 		if (c_stream_.avail_in==0)
 		{
 			//We're writing the epilogue
@@ -454,7 +484,6 @@ public:
 		size_t consumed = size - c_stream_.avail_out;
 		MD5_Update(&md5_ctx, bufptr, consumed);
 		written_ += consumed;
-		good_data_written_+=consumed;
 		return consumed;
 	}
 
@@ -465,7 +494,6 @@ public:
 		{
 			memcpy(bufptr, buf_+written_, tocopy);
 			MD5_Update(&md5_ctx, bufptr, tocopy);
-			good_data_written_+=tocopy;
 			written_+=tocopy;
 		}
 		return tocopy;
@@ -474,7 +502,7 @@ public:
 
 std::pair<size_t,std::string> s3_connection::upload_data(
 	const std::string &path,
-	const void *addr, size_t size, bool do_compress,
+	const void *addr, size_t size, bool do_compress, size_t min_size,
 	const header_map_t& opts)
 {
 	prepare("PUT", path, opts);
@@ -483,9 +511,9 @@ std::pair<size_t,std::string> s3_connection::upload_data(
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
 
-	read_data data((const char*)addr, size, do_compress);
+	read_data data((const char*)addr, size, do_compress, min_size);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, data.max_total_size());
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, data.to_write());
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
 
@@ -495,10 +523,11 @@ std::pair<size_t,std::string> s3_connection::upload_data(
 
 	curl_easy_perform(curl_) | die;
 
-	if (strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))
+	if (!etag.empty() &&
+			strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))
 		abort(); //Data corruption. This SHOULD NOT happen!
 
-	return std::make_pair(data.good_data_written(), etag);
+	return std::make_pair(data.to_write(), etag);
 }
 
 std::string s3_connection::initiate_multipart(
@@ -536,12 +565,12 @@ std::string s3_connection::complete_multipart(const std::string &path,
 	}
 	data.append("</CompleteMultipartUpload>");
 
-	set_url(path, "");
+	prepare("POST", path);
 
-	read_data data_params(data.c_str(), data.length(), false);
+	read_data data_params(data.c_str(), data.length(), false, 0);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
 	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE,
-					 data_params.max_total_size());
+					 data_params.to_write());
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data_params);
 

@@ -16,6 +16,7 @@
 #define MIN_RATIO 0.9d
 
 #define MIN_PART_SIZE 5242880
+#define MIN_ALLOWED_PART_SIZE 5242880
 #define MAX_PART_NUM 10
 
 using namespace es3;
@@ -115,7 +116,7 @@ void file_uploader::simple_upload(agenda_ptr ag, upload_content_ptr content)
 	std::pair<size_t, std::string> res=up.upload_data(remote_,
 					content->region_.get_address(),
 					content->region_.get_size(),
-					false, hmap);
+					false, false, hmap);
 	assert(res.first==content->region_.get_size());
 }
 
@@ -158,36 +159,11 @@ public:
 		header_map_t hmap;
 		hmap["Content-Type"] = "application/x-binary";
 
-		std::string etag;
-		if (!compressed_)
-		{
-			s3_connection up(conn_);
-			std::pair<size_t,std::string> res=up.upload_data(part_path,
-						data+offset, ln, false, hmap);
-			etag = res.second;
-		} else
-		{
-			//That's where it gets interesting :)
-			std::string scratch_path="/.scratch"+remote_+"-"+
-					int_to_string(num_+1);
-
-			s3_connection up(conn_);
-			std::pair<size_t,std::string> res=up.upload_data(scratch_path,
-						data+offset, ln, true, hmap);
-
-			s3_connection remover(conn_);
-			ON_BLOCK_EXIT_OBJ(remover, &s3_connection::read_fully_def,
-							  std::string("DELETE"), scratch_path);
-
-			s3_connection mover(conn_);
-			header_map_t hmap2;
-			hmap2["x-amz-copy-source"] =
-					conn_.bucket_+scratch_path;
-			hmap2["x-amz-copy-source-range"] =
-					"bytes=0-"+int_to_string(res.first);
-			std::string mres=mover.read_fully("PUT", part_path, hmap2);
-			std::cerr << mres << std::endl;
-		}
+		s3_connection up(conn_);
+		std::pair<size_t,std::string> res=up.upload_data(part_path,
+					data+offset, ln, compressed_, MIN_ALLOWED_PART_SIZE, hmap);
+		assert(res.first>=MIN_ALLOWED_PART_SIZE);
+		std::string etag = res.second;
 
 		if (etag.empty())
 			err(errWarn) << "Failed to upload a part " << num_;
@@ -216,7 +192,7 @@ void file_uploader::start_upload(agenda_ptr ag,
 
 	size_t size=content->region_.get_size();
 
-	size_t number_of_parts = (size+MIN_PART_SIZE/2)/MIN_PART_SIZE;
+	size_t number_of_parts = size/MIN_PART_SIZE;
 	if (number_of_parts>MAX_PART_NUM)
 		number_of_parts = MAX_PART_NUM;
 	content->num_parts_ = number_of_parts;

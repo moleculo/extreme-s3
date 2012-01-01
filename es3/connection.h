@@ -74,7 +74,7 @@ namespace es3 {
 		file_map_t list_files(const std::string &path,
 							  const std::string &prefix);
 		std::pair<size_t,std::string> upload_data(const std::string &path,
-			const void *addr, size_t size, bool do_compress,
+			const void *addr, size_t size, bool do_compress, size_t min_size,
 			const header_map_t& opts);
 
 		std::string initiate_multipart(const std::string &path,
