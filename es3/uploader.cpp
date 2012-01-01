@@ -12,12 +12,12 @@
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 
-#define COMPRESSION_THRESHOLD 100000
+#define COMPRESSION_THRESHOLD 10000000
 #define MIN_RATIO 0.9d
 
 #define MIN_PART_SIZE 5242880
-#define MIN_ALLOWED_PART_SIZE 5242880
-#define MAX_PART_NUM 10
+#define MIN_ALLOWED_PART_SIZE 15242880
+#define MAX_PART_NUM 200
 
 using namespace es3;
 using namespace boost::interprocess;
