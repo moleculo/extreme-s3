@@ -11,9 +11,9 @@ agenda_ptr agenda::make_new(size_t thread_num)
 	return agenda_ptr(new agenda(thread_num));
 }
 
-agenda::agenda(size_t thread_num) : num_working_(), thread_num_(thread_num)
+agenda::agenda(size_t thread_num) : num_working_()
 {
-
+	thread_num_ = thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+8;
 }
 
 namespace es3
@@ -109,12 +109,9 @@ void agenda::schedule(sync_task_ptr task)
 void agenda::run()
 {
 	std::vector<std::thread> threads;
-	size_t num_threads = thread_num_>0 ? thread_num_ :
-			sysconf(_SC_NPROCESSORS_ONLN)+8;
-
-	for(int f=0;f<num_threads;++f)
+	for(int f=0;f<thread_num_;++f)
 		threads.push_back(std::thread(task_executor(shared_from_this())));
 
-	for(int f=0;f<num_threads;++f)
+	for(int f=0;f<thread_num_;++f)
 		threads.at(f).join();
 }

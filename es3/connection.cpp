@@ -7,7 +7,6 @@
 #include <iostream>
 #include <assert.h>
 #include <strings.h>
-#include <zlib.h>
 #include "scope_guard.h"
 
 using namespace es3;
@@ -346,100 +345,19 @@ std::pair<time_t, uint64_t> s3_connection::find_mtime_and_size(
 
 class read_data
 {
-	const char *buf_;
-	size_t raw_size_;
-	bool do_compression_;
+	int descriptor_;
+	uint64_t offset_, size_;
 
-	size_t to_write_;
-	size_t written_;
-
-	z_stream c_stream_;
-	bool is_compressing_;
-
-	size_t compressed_size_;
+	uint64_t written_;
 	MD5_CTX md5_ctx;
 public:
-	read_data(const char *buf, size_t sz, bool do_compression,
-			  size_t min_size) :
-		buf_(buf), raw_size_(sz), do_compression_(do_compression),
-		written_(), is_compressing_(true), compressed_size_()
+	read_data(int descriptor, size_t size, size_t offset) :
+		descriptor_(descriptor), offset_(offset), size_(size), written_()
 	{
 		MD5_Init(&md5_ctx);
-
-		c_stream_={0}; //compression stream
-
-		if (do_compression)
-		{
-			int err;
-			VLOG(2)<<"Estimating size, raw size=" << raw_size_;
-			to_write_ = calc_size(false);
-			if (to_write_<min_size)
-			{
-				init_deflate(&c_stream_, true);
-				to_write_ = calc_size(true);
-			}
-			else
-				init_deflate(&c_stream_, false);
-			VLOG(2)<<"Size is "<<to_write_ <<", raw size=" << raw_size_;
-		} else
-		{
-			to_write_ = raw_size_;
-		}
-	}
-
-	void init_deflate(z_stream *stream, bool nozip)
-	{
-		int err;
-		stream->next_in = (Bytef*)buf_;
-		stream->avail_in = raw_size_;
-		if (nozip)
-		{
-			//No compression
-			err=deflateInit2(stream, 0, Z_DEFLATED,
-						   15|16, //15 window bits | GZIP
-						   8,
-						   Z_DEFAULT_STRATEGY);
-		} else
-		{
-			err=deflateInit2(stream, 8, Z_DEFLATED,
-						   15|16, //15 window bits | GZIP
-						   8,
-						   Z_DEFAULT_STRATEGY);
-		}
-		if (err!=Z_OK)
-			throw std::bad_exception();
-	}
-
-	size_t calc_size(bool no_zip)
-	{
-		z_stream stream={0}; //compression stream
-		init_deflate(&stream, no_zip);
-		ON_BLOCK_EXIT(&deflateEnd, &stream);
-
-		char buf[16384];
-		size_t consumed=0;
-		while(true)
-		{
-			stream.avail_out=16384;
-			stream.next_out = (Bytef*)buf;
-			int err;
-			if (c_stream_.avail_in==0)
-				err=deflate(&stream, Z_FINISH); //We're writing the epilogue
-			else
-				err=deflate(&stream, Z_NO_FLUSH);
-			consumed += 16384 - stream.avail_out;
-
-			if (err==Z_STREAM_END)
-				break;
-			else if (err<0)
-				abort(); //This can't happen
-		}
-		return consumed;
-	}
-
-	uint64_t to_write() const
-	{
-		return to_write_;
+		uint64_t res=lseek64(descriptor, offset_, SEEK_SET);
+		if (res<0)
+			res | libc_die;
 	}
 
 	std::string get_md5()
@@ -447,14 +365,6 @@ public:
 		unsigned char md[MD5_DIGEST_LENGTH+1]={0};
 		MD5_Final(md, &md5_ctx);
 		return tobinhex(md, MD5_DIGEST_LENGTH);
-	}
-
-	~read_data()
-	{
-		//Do not check for errors here, because we might get here with
-		//unwritten data in case of network connectivity problems.
-		if (do_compression_)
-			deflateEnd(&c_stream_);
 	}
 
 	static size_t read_func(char *bufptr, size_t size,
@@ -466,62 +376,32 @@ public:
 
 	size_t do_read(char *bufptr, size_t size)
 	{
-		if (!do_compression_)
-			return simple_read(bufptr, size);
+		size_t tocopy = std::min(size_-written_, uint64_t(size));
+		size_t res=read(descriptor_, bufptr, tocopy);
+		if (res<=0)
+			return -1;
 
-		assert(is_compressing_);
-		//We can't overshot
+		MD5_Update(&md5_ctx, bufptr, tocopy);
+		written_+=tocopy;
 
-		c_stream_.avail_out=size;
-		c_stream_.next_out = (Bytef*)bufptr;
-		if (c_stream_.avail_in==0)
-		{
-			//We're writing the epilogue
-			int err=deflate(&c_stream_, Z_FINISH);
-			if (err==Z_STREAM_END)
-				is_compressing_ = false;
-			else if (err<0)
-				abort(); //This can't happen
-		} else
-		{
-			int err=deflate(&c_stream_, Z_NO_FLUSH);
-			if (err != Z_OK)
-				abort(); //This can't happen
-		}
-
-		size_t consumed = size - c_stream_.avail_out;
-		MD5_Update(&md5_ctx, bufptr, consumed);
-		written_ += consumed;
-		return consumed;
-	}
-
-	size_t simple_read(char *bufptr, size_t size)
-	{
-		size_t tocopy = std::min(raw_size_-written_, size);
-		if (tocopy!=0)
-		{
-			memcpy(bufptr, buf_+written_, tocopy);
-			MD5_Update(&md5_ctx, bufptr, tocopy);
-			written_+=tocopy;
-		}
 		return tocopy;
 	}
 };
 
-std::pair<size_t,std::string> s3_connection::upload_data(
-	const std::string &path,
-	const void *addr, size_t size, bool do_compress, size_t min_size,
-	const header_map_t& opts)
+std::string s3_connection::upload_data(const std::string &path,
+	int descriptor, uint64_t size, uint64_t offset, const header_map_t& opts)
 {
 	prepare("PUT", path, opts);
+	if (size==0)
+		size=lseek64(descriptor, 0, SEEK_END);
 
 	std::string etag;
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
 
-	read_data data((const char*)addr, size, do_compress, min_size);
+	read_data data(descriptor, size, offset);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, data.to_write());
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
 
@@ -536,7 +416,7 @@ std::pair<size_t,std::string> s3_connection::upload_data(
 			strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))
 		abort(); //Data corruption. This SHOULD NOT happen!
 
-	return std::make_pair(data.to_write(), etag);
+	return etag;
 }
 
 std::string s3_connection::initiate_multipart(
@@ -557,6 +437,31 @@ std::string s3_connection::initiate_multipart(
 	return node->Value();
 }
 
+struct buf_data
+{
+	const char *buf_;
+	size_t raw_size_;
+	size_t written_;
+
+	static size_t read_func(char *bufptr, size_t size,
+							size_t nitems, void *userp)
+	{
+		return reinterpret_cast<buf_data*>(userp)->simple_read(
+					bufptr, size*nitems);
+	}
+
+	size_t simple_read(char *bufptr, size_t size)
+	{
+		size_t tocopy = std::min(raw_size_-written_, size);
+		if (tocopy!=0)
+		{
+			memcpy(bufptr, buf_+written_, tocopy);
+			written_+=tocopy;
+		}
+		return tocopy;
+	}
+};
+
 std::string s3_connection::complete_multipart(const std::string &path,
 	const std::vector<std::string> &etags)
 {
@@ -576,11 +481,10 @@ std::string s3_connection::complete_multipart(const std::string &path,
 
 	prepare("POST", path);
 
-	read_data data_params(data.c_str(), data.length(), false, 0);
+	buf_data data_params {data.c_str(), data.length(), 0};
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE,
-					 data_params.to_write());
-	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, data.length());
+	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &buf_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data_params);
 
 	std::string read_data;

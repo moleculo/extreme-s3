@@ -30,6 +30,7 @@ namespace es3 {
 		std::string bucket_;
 		std::string api_key_, secret_key;
 		std::string local_root_, remote_root_;
+		std::string scratch_path_;
 		bool upload_;
 		bool delete_missing_;
 	};
@@ -73,8 +74,8 @@ namespace es3 {
 							   const header_map_t &opts=header_map_t());
 		file_map_t list_files(const std::string &path,
 							  const std::string &prefix);
-		std::pair<size_t,std::string> upload_data(const std::string &path,
-			const void *addr, size_t size, bool do_compress, size_t min_size,
+		std::string upload_data(const std::string &path,
+			int descriptor, uint64_t size, uint64_t offset,
 			const header_map_t& opts);
 
 		std::string initiate_multipart(const std::string &path,

@@ -4,6 +4,7 @@ SET(es3_SRCS
 	agenda.cpp
 	base64.cpp
 	common.cpp
+	compressor.cpp
 	connection.cpp
 	downloader.cpp
 	errors.cpp
@@ -15,6 +16,7 @@ SET(es3_SRCS
 SET(es3_INCLUDES
 	agenda.h
 	common.h
+	compressor.h
 	connection.h
 	downloader.h
 	errors.h

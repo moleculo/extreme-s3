@@ -27,6 +27,9 @@ int main(int argc, char **argv)
 			"Verbosity level [0 - the lowest, 9 - the highest]")
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
 			"Number of threads used [0 - autodetect]")
+		("scratch-dir,r", po::value<std::string>(
+			 &cd.scratch_path_)->default_value("/tmp")->required(),
+			"Path to the scratch directory")
 
 		("access-key,a", po::value<std::string>(
 				 &cd.api_key_)->required(),

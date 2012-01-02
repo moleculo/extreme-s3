@@ -9,7 +9,8 @@ namespace es3 {
 	struct upload_content;
 	typedef boost::shared_ptr<upload_content> upload_content_ptr;
 
-	class file_uploader : public sync_task
+	class file_uploader : public sync_task,
+			public boost::enable_shared_from_this<file_uploader>
 	{
 		const connection_data conn_;
 		const std::string path_;

@@ -34,6 +34,7 @@ namespace es3 {
 	public:
 		static boost::shared_ptr<agenda> make_new(size_t thread_num);
 
+		int advise_capability() const { return thread_num_;}
 		void schedule(sync_task_ptr task);
 		void run();
 	};

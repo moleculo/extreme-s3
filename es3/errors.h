@@ -7,6 +7,8 @@
 namespace es3 {
 	class die_t {};
 	extern ES3LIB_PUBLIC const die_t die;
+	class libc_die_t {};
+	extern ES3LIB_PUBLIC const libc_die_t libc_die;
 
 	enum code_e
 	{
@@ -87,6 +89,8 @@ namespace es3 {
 		if (!code.ok())
 			boost::throw_exception(es3_exception(code));
 	}
+
+	ES3LIB_PUBLIC int operator | (const int res, const libc_die_t &);
 
 #define TRYIT(expr) try{ expr; } catch(const es3_exception &ex) { \
 		return ex.err(); \
