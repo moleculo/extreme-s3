@@ -90,7 +90,8 @@ int main(int argc, char **argv)
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
 	agenda_ptr ag=agenda::make_new(thread_num);
-	synchronizer sync(ag, cd);
+	agenda_ptr compr_ag=agenda::make_new(0);
+	synchronizer sync(ag, compr_ag, cd);
 	sync.create_schedule();
 	ag->run();
 

@@ -16,13 +16,15 @@ namespace es3 {
 		const std::string path_;
 		const std::string remote_;
 		const std::string etag_;
-
+		agenda_ptr compr_agenda_;
 	public:
 		file_uploader(const connection_data &conn,
 					  const std::string &path,
 					  const std::string &remote,
-					  const std::string &etag)
-			: conn_(conn), path_(path), remote_(remote), etag_(etag)
+					  const std::string &etag,
+					  agenda_ptr compr_agenda)
+			: conn_(conn), path_(path), remote_(remote), etag_(etag),
+			  compr_agenda_(compr_agenda)
 		{
 		}
 

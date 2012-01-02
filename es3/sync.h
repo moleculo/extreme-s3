@@ -10,11 +10,12 @@ namespace es3 {
 
 	class synchronizer
 	{
-		agenda_ptr agenda_;
+		agenda_ptr agenda_, compr_agenda_;
 		connection_data to_;
 		std::string cur_remote_;
 	public:
-		synchronizer(agenda_ptr agenda, const connection_data &to);
+		synchronizer(agenda_ptr agenda, agenda_ptr compr_agenda,
+					 const connection_data &to);
 		void create_schedule();
 
 	private:

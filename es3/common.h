@@ -81,6 +81,19 @@ namespace es3 {
 
 	#define VLOG(lev) if(es3::logger::is_log_on(lev)) es3::logger(lev)
 
+	class handle_t
+	{
+		int fileno_;
+	public:
+		handle_t();
+		explicit handle_t(int fileno);
+		handle_t(const handle_t& other);
+		handle_t& operator = (const handle_t &other);
+		~handle_t();
+
+		handle_t dup() const;
+		int get() const {return fileno_;}
+	};
 };
 
 #endif // COMMON_H

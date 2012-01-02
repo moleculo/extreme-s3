@@ -21,14 +21,12 @@ namespace es3
 
 		virtual void operator()(agenda_ptr agenda)
 		{
-			int src=open(parent_->path_.c_str(), O_RDONLY) | libc_die;
-			ON_BLOCK_EXIT(&close, src);
+			handle_t src(open(parent_->path_.c_str(), O_RDONLY));
 
 			//Generate the temp name
 			path tmp_nm = path(parent_->scratch_path_) /
 					unique_path("scratchy-%%%%-%%%%");
-			int tmp_desc = open(tmp_nm.c_str(), O_RDWR|O_CREAT) | libc_die;
-			ON_BLOCK_EXIT(&close, tmp_desc);
+			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT));
 			unlink(tmp_nm.c_str());
 
 			uint64_t offset = (total_sz_/block_total_)*block_num_;
@@ -36,7 +34,7 @@ namespace es3
 			if (total_sz_-offset < size)
 				size = total_sz_-offset;
 			//Seek pos
-			lseek64(src, offset, SEEK_SET) | libc_die;
+			lseek64(src.get(), offset, SEEK_SET) | libc_die;
 
 			VLOG(2) << "Compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;
@@ -53,7 +51,7 @@ namespace es3
 			size_t consumed=0;
 			while(true)
 			{
-				ssize_t ln=read(src, buf, sizeof(buf));
+				ssize_t ln=read(src.get(), buf, sizeof(buf));
 				if (ln<=0)
 					break;
 
@@ -70,7 +68,7 @@ namespace es3
 									  << parent_->path_;
 
 					size_t cur_consumed=sizeof(buf_out) - stream.avail_out;
-					write(tmp_desc, buf_out, cur_consumed) | libc_die;
+					write(tmp_desc.get(), buf_out, cur_consumed) | libc_die;
 					consumed += cur_consumed;
 				} while(stream.avail_in!=0);
 			}
@@ -83,10 +81,9 @@ namespace es3
 							  << parent_->path_;
 			size_t cur_consumed=sizeof(buf_out) - stream.avail_out;
 			consumed += cur_consumed;
-			write(tmp_desc, buf_out, cur_consumed) | libc_die;
+			write(tmp_desc.get(), buf_out, cur_consumed) | libc_die;
 
-			parent_->on_complete(dup(tmp_desc) | libc_die,
-								 block_num_, consumed);
+			parent_->on_complete(tmp_desc, block_num_, consumed);
 		}
 	};
 }; //namespace es3
@@ -96,7 +93,7 @@ void file_compressor::operator()(agenda_ptr agenda)
 	uint64_t file_sz=file_size(path_);
 	if (file_sz<=MINIMAL_BLOCK)
 	{
-		int desc=open(path_.c_str(), O_RDONLY) | libc_die;
+		handle_t desc(open(path_.c_str(), O_RDONLY));
 		on_finish_(zip_result_ptr(
 					new compressed_result(desc, file_sz)));
 		return;
@@ -120,7 +117,7 @@ void file_compressor::operator()(agenda_ptr agenda)
 	}
 }
 
-void file_compressor::on_complete(int descriptor, uint64_t num,
+void file_compressor::on_complete(const handle_t &descriptor, uint64_t num,
 				 uint64_t resulting_size)
 {
 	{

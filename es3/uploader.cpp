@@ -45,10 +45,12 @@ struct es3::upload_content
 	upload_content() : num_parts_(), num_completed_() {}
 
 	std::mutex lock_;
+	connection_data conn_;
+	time_t mtime_;
+
 	size_t num_parts_;
 	size_t num_completed_;
 	std::vector<std::string> etags_;
-	time_t mtime_;
 };
 
 void file_uploader::operator()(agenda_ptr agenda)
@@ -65,11 +67,12 @@ void file_uploader::operator()(agenda_ptr agenda)
 
 	//Woohoo! We need to upload the file.
 	upload_content_ptr up_data(new upload_content());
+	up_data->conn_ = conn_;
 	up_data->mtime_ = mtime;
 
 	VLOG(2) << "Starting upload of " << path_ << " as "
 			  << remote_;
-	if (1 || file_sz<=MIN_PART_SIZE*2)
+	if (file_sz<=MIN_PART_SIZE*2)
 	{
 		simple_upload(agenda, up_data);
 	} else
@@ -89,28 +92,31 @@ void file_uploader::simple_upload(agenda_ptr ag, upload_content_ptr content)
 	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
 	s3_connection up(conn_);
 
-	int file=open(path_.c_str(), O_RDONLY) | libc_die;
-	ON_BLOCK_EXIT(close, file);
+	handle_t file(open(path_.c_str(), O_RDONLY));
+	int64_t sz=lseek64(file.get(), 0, SEEK_END);
+	hmap["x-amz-meta-size"] = int_to_string(sz);
 	std::string etag=up.upload_data(remote_,
-									file, 0, 0, hmap);
+									file, sz, 0, hmap);
 }
 
 class part_upload_task : public sync_task
 {
 	size_t num_;
 	std::string upload_id_;
-	const connection_data conn_;
+
 	const std::string remote_;
 	upload_content_ptr content_;
-	bool compressed_;
+
+	handle_t descriptor_;
+	uint64_t offset_, size_;
 public:
 	part_upload_task(size_t num, const std::string &upload_id,
-					 const connection_data &conn,
-					 const std::string &remote, upload_content_ptr content,
-					 bool compressed)
+					 const std::string &remote,
+					 upload_content_ptr content,
+					 handle_t descriptor, uint64_t offset, uint64_t size)
 		: num_(num), upload_id_(upload_id),
-		  conn_(conn), remote_(remote), content_(content),
-		  compressed_(compressed)
+		  remote_(remote), content_(content),
+		  descriptor_(descriptor), offset_(offset), size_(size)
 	{
 	}
 
@@ -123,28 +129,15 @@ public:
 		param.sched_priority = 1+num_*90/content_->num_parts_;
 		pthread_setschedparam(pthread_self(), SCHED_RR, &param);
 
-//		size_t size = content_->region_.get_size();
-//		size_t part_size = size/content_->num_parts_;
-//		size_t offset = part_size*num_;
-//		size_t ln = size-offset;
-//		if (ln>part_size)
-//			ln=part_size;
-//		unsigned char *data=reinterpret_cast<unsigned char *>(
-//					content_->region_.get_address());
+		std::string part_path=remote_+
+				"?partNumber="+int_to_string(num_+1)
+				+"&uploadId="+upload_id_;
+		header_map_t hmap;
+		hmap["Content-Type"] = "application/x-binary";
 
-//		std::string part_path=remote_+
-//				"?partNumber="+int_to_string(num_+1)
-//				+"&uploadId="+upload_id_;
-//		header_map_t hmap;
-//		hmap["Content-Type"] = "application/x-binary";
-
-//		s3_connection up(conn_);
-//		std::pair<size_t,std::string> res=up.upload_data(part_path,
-//					data+offset, ln, compressed_, MIN_ALLOWED_PART_SIZE, hmap);
-//		assert(res.first>=MIN_ALLOWED_PART_SIZE ||
-//			   num_==content_->num_parts_-1);
-		std::string etag ;//= res.second;
-
+		s3_connection up(content_->conn_);
+		std::string etag=up.upload_data(part_path, descriptor_, size_, offset_,
+										hmap);
 		if (etag.empty())
 			err(errWarn) << "Failed to upload a part " << num_;
 
@@ -162,7 +155,7 @@ public:
 		{
 			VLOG(2) << "Assembling "<< remote_ <<".";
 			//We've completed the upload!
-			s3_connection up2(conn_);
+			s3_connection up2(content_->conn_);
 			up2.complete_multipart(remote_+"?uploadId="+upload_id_,
 								  content_->etags_);
 		}
@@ -172,31 +165,37 @@ public:
 void file_uploader::start_upload(agenda_ptr ag,
 								 upload_content_ptr content, bool compressed)
 {
-	VLOG(2) << "Starting upload of " << path_ << " as "
-			<< remote_ ;
+	handle_t file(open(path_.c_str(), O_RDONLY));
+	uint64_t size = lseek64(file.get(), 0, SEEK_END);
 
-//	size_t size=content->region_.get_size();
+	size_t number_of_parts = size/MIN_PART_SIZE;
+	if (number_of_parts>MAX_PART_NUM)
+		number_of_parts = MAX_PART_NUM;
+	content->num_parts_ = number_of_parts;
+	content->etags_.resize(number_of_parts);
 
-//	size_t number_of_parts = size/MIN_PART_SIZE;
-//	if (number_of_parts>MAX_PART_NUM)
-//		number_of_parts = MAX_PART_NUM;
-//	content->num_parts_ = number_of_parts;
-//	content->etags_.resize(number_of_parts);
+	header_map_t hmap;
+	hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
+	hmap["Content-Type"] = "application/x-binary";
+	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
+	hmap["x-amz-meta-size"] = int_to_string(size);
 
-//	header_map_t hmap;
-//	hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
-//	hmap["Content-Type"] = "application/x-binary";
-//	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
-//	s3_connection up(conn_);
-//	std::string upload_id=up.initiate_multipart(remote_, hmap);
+	s3_connection up(conn_);
+	std::string upload_id=up.initiate_multipart(remote_, hmap);
 
-//	for(size_t f=0;f<number_of_parts;++f)
-//	{
-//		boost::shared_ptr<part_upload_task> task(
-//					new part_upload_task(f, upload_id,
-//										 conn_, remote_, content, compressed));
-//		ag->schedule(task);
-//	}
+	for(size_t f=0;f<number_of_parts;++f)
+	{
+		uint64_t offset = (size/number_of_parts)*f;
+		uint64_t cur_size = size/number_of_parts;
+		if (size-offset < cur_size)
+			cur_size = size- offset;
+
+		boost::shared_ptr<part_upload_task> task(
+					new part_upload_task(f, upload_id,
+										 remote_, content, file.dup(),
+										 offset, cur_size));
+		ag->schedule(task);
+	}
 }
 
 void file_deleter::operator()(agenda_ptr agenda)

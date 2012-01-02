@@ -315,7 +315,7 @@ static size_t find_mtime(void *ptr, size_t size, size_t nmemb, void *userdata)
 			pair->first=tm2;
 	}
 
-	std::string ln=find_header(ptr, size, nmemb, "content-length");
+	std::string ln=find_header(ptr, size, nmemb, "x-amz-meta-size");
 	if (!ln.empty())
 		pair->second = atoll(ln.c_str());
 
@@ -345,17 +345,17 @@ std::pair<time_t, uint64_t> s3_connection::find_mtime_and_size(
 
 class read_data
 {
-	int descriptor_;
+	handle_t descriptor_;
 	uint64_t offset_, size_;
 
 	uint64_t written_;
 	MD5_CTX md5_ctx;
 public:
-	read_data(int descriptor, size_t size, size_t offset) :
+	read_data(const handle_t &descriptor, size_t size, size_t offset) :
 		descriptor_(descriptor), offset_(offset), size_(size), written_()
 	{
 		MD5_Init(&md5_ctx);
-		uint64_t res=lseek64(descriptor, offset_, SEEK_SET);
+		uint64_t res=lseek64(descriptor_.get(), offset_, SEEK_SET);
 		if (res<0)
 			res | libc_die;
 	}
@@ -377,7 +377,7 @@ public:
 	size_t do_read(char *bufptr, size_t size)
 	{
 		size_t tocopy = std::min(size_-written_, uint64_t(size));
-		size_t res=read(descriptor_, bufptr, tocopy);
+		size_t res=read(descriptor_.get(), bufptr, tocopy);
 		if (res<=0)
 			return -1;
 
@@ -389,11 +389,15 @@ public:
 };
 
 std::string s3_connection::upload_data(const std::string &path,
-	int descriptor, uint64_t size, uint64_t offset, const header_map_t& opts)
+	const handle_t &descriptor, uint64_t size, uint64_t offset,
+	const header_map_t& opts)
 {
 	prepare("PUT", path, opts);
 	if (size==0)
-		size=lseek64(descriptor, 0, SEEK_END);
+	{
+		lseek64(descriptor.get(), 0, SEEK_SET);
+		size=lseek64(descriptor.get(), 0, SEEK_END);
+	}
 
 	std::string etag;
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
@@ -483,7 +487,7 @@ std::string s3_connection::complete_multipart(const std::string &path,
 
 	buf_data data_params {data.c_str(), data.length(), 0};
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, data.length());
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(data.size()));
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &buf_data::read_func);
 	curl_easy_setopt(curl_, CURLOPT_READDATA, &data_params);
 

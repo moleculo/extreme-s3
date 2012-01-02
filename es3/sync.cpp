@@ -9,8 +9,9 @@
 using namespace es3;
 using namespace boost::filesystem;
 
-synchronizer::synchronizer(agenda_ptr agenda, const connection_data &to)
-	: agenda_(agenda), to_(to)
+synchronizer::synchronizer(agenda_ptr agenda, agenda_ptr compr_agenda,
+						   const connection_data &to)
+	: agenda_(agenda), compr_agenda_(compr_agenda), to_(to)
 {
 }
 
@@ -95,14 +96,14 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				if (!cur_remote_child)
 				{
 					sync_task_ptr task(new file_uploader(
-						to_, dent_path, new_remote_path, ""));
+						to_, dent_path, new_remote_path, "", compr_agenda_));
 					agenda_->schedule(task);
 				}
 				else
 				{
 					sync_task_ptr task(new file_uploader(
 						to_, dent_path, new_remote_path,
-						cur_remote_child->etag_));
+						cur_remote_child->etag_, compr_agenda_));
 					agenda_->schedule(task);
 				}
 			} else

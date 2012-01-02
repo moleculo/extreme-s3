@@ -1,5 +1,7 @@
 #include "common.h"
 #include <sstream>
+#include "errors.h"
+#include <stdio.h>
 
 #define BOOST_KARMA_NUMERICS_LOOP_UNROLL 6
 #include <boost/spirit/include/karma.hpp>
@@ -97,4 +99,40 @@ std::string es3::format_time(time_t time)
 	char date_header[80] = {0};
 	strftime(date_header, 80, "%a, %d %b %Y %H:%M:%S +0000", timeinfo);
 	return date_header;
+}
+
+handle_t::handle_t()
+{
+	fileno_ = 0;
+}
+
+handle_t::handle_t(int fileno)
+{
+	fileno_ = fileno | libc_die;
+}
+
+handle_t::handle_t(const handle_t& other)
+{
+	fileno_ = ::dup(other.fileno_) | libc_die;
+}
+
+handle_t& handle_t::operator = (const handle_t &other)
+{
+	if (this==&other) return *this;
+	if (fileno_) close(fileno_);
+	fileno_ = ::dup(other.fileno_) | libc_die;
+	return *this;
+}
+
+handle_t handle_t::dup() const
+{
+	if (!fileno_)
+		return handle_t();
+	return handle_t(::dup(fileno_) | libc_die);
+}
+
+handle_t::~handle_t()
+{
+	if (fileno_)
+		close(fileno_);
 }
