@@ -378,13 +378,12 @@ public:
 	{
 		size_t tocopy = std::min(size_-written_, uint64_t(size));
 		size_t res=read(descriptor_.get(), bufptr, tocopy);
-		if (res<=0)
-			return -1;
-
-		MD5_Update(&md5_ctx, bufptr, tocopy);
-		written_+=tocopy;
-
-		return tocopy;
+		if (res>0)
+		{
+			MD5_Update(&md5_ctx, bufptr, res);
+			written_+=res;
+		}
+		return res;
 	}
 };
 
