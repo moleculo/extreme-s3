@@ -406,7 +406,7 @@ public:
 
 	size_t do_read(char *bufptr, size_t size)
 	{
-		size_t tocopy = std::min(size_-written_, 16384);//uint64_t(size));
+		size_t tocopy = std::min(size_-written_, uint64_t(16384));//uint64_t(size));
 		size_t res=read(descriptor_.get(), bufptr, tocopy);
 		if (res>0)
 		{
