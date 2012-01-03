@@ -11,9 +11,9 @@
 #define COMPRESSION_THRESHOLD 10000000
 #define MIN_RATIO 0.9d
 
-#define MIN_PART_SIZE 15242880
-#define MIN_ALLOWED_PART_SIZE 15242880
-#define MAX_PART_NUM 300
+#define MIN_PART_SIZE (6*1024*1024)
+#define MIN_ALLOWED_PART_SIZE (6*1024*1024)
+#define MAX_PART_NUM 10000
 
 using namespace es3;
 using namespace boost::filesystem;

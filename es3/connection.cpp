@@ -384,7 +384,7 @@ public:
 		if (res<0)
 			res | libc_die;
 
-		pre_read_.resize(std::min(size_t(25*1024*1024), size-offset));
+		pre_read_.resize(std::min(size_t(6*1024*1024), size-offset));
 		prime_offset_=cur_primed_=0;
 		prime();
 	}
@@ -464,8 +464,7 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
 	time_t start=time(NULL);
-	curl_easy_perform(curl_);// | die;
-	std::string str="!!!!! failed: "+int_to_string(data.last_read-start)+"==";
+	curl_easy_perform(curl_) | die;
 	if (result.find("<Error>")!=std::string::npos)
 	{
 		std::cerr << "!!!!! failed: " <<
