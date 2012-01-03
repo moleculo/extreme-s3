@@ -86,10 +86,10 @@ void s3_connection::prepare(const std::string &verb,
 	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 16384);
 
 //	curl_easy_setopt(curl_, CURLOPT_TCP_NODELAY, 1);
-	curl_easy_setopt(curl_, CURLOPT_SOCKOPTFUNCTION, &sockopt_callback);
+//	curl_easy_setopt(curl_, CURLOPT_SOCKOPTFUNCTION, &sockopt_callback);
 //	curl_easy_setopt(curl_, CURLOPT_TIMEOUT, 5);
-	curl_easy_setopt(curl_, CURLOPT_LOW_SPEED_TIME, 2);
-	curl_easy_setopt(curl_, CURLOPT_LOW_SPEED_LIMIT, 200000);
+//	curl_easy_setopt(curl_, CURLOPT_LOW_SPEED_TIME, 2);
+//	curl_easy_setopt(curl_, CURLOPT_LOW_SPEED_LIMIT, 200000);
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
 	set_url(cur_path, "");
