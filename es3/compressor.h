@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "agenda.h"
+#include "context.h"
 #include <functional>
 
 namespace es3 {
@@ -35,7 +36,8 @@ namespace es3 {
 	{
 		std::mutex m_;
 
-		const std::string path_, scratch_path_;
+		context_ptr context_;
+		const std::string path_;
 		zipped_callback on_finish_;
 
 		zip_result_ptr result_;
@@ -44,14 +46,20 @@ namespace es3 {
 		friend struct compress_task;
 	public:
 		file_compressor(const std::string &path,
-						const std::string &scratch_path,
+						context_ptr context,
 						zipped_callback on_finish)
-			: path_(path), scratch_path_(scratch_path), on_finish_(on_finish)
+			: path_(path), context_(context), on_finish_(on_finish)
 		{
 		}
 
-		virtual std::string get_class() const { return "compression"; }
-		virtual int get_class_limit() const { return 8; }
+		virtual std::string get_class() const
+		{
+			return "compression"+int_to_string(context_->max_compressors_);
+		}
+		virtual int get_class_limit() const
+		{
+			return context_->max_compressors_;
+		}
 		virtual void operator()(agenda_ptr agenda);
 	private:
 		void on_complete(const handle_t &descriptor, uint64_t num,

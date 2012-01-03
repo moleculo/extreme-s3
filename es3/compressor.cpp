@@ -24,7 +24,7 @@ namespace es3
 			handle_t src(open(parent_->path_.c_str(), O_RDONLY));
 
 			//Generate the temp name
-			path tmp_nm = path(parent_->scratch_path_) /
+			path tmp_nm = path(parent_->context_->scratch_path_) /
 					unique_path("scratchy-%%%%-%%%%");
 			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT));
 			unlink(tmp_nm.c_str());
@@ -128,30 +128,6 @@ void file_compressor::on_complete(const handle_t &descriptor, uint64_t num,
 	}
 	if (num_pending_==0)
 	{
-		//Generate the temp name
-		path tmp_nm = path(scratch_path_) /
-				unique_path("scratchy-%%%%-%%%%");
-		handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT));
-		unlink(tmp_nm.c_str());
-
-		//Concatenate all files
-		uint64_t total=0;
-		for(size_t f=0;f<result_->descriptors_.size();++f)
-		{
-			const handle_t &desc=result_->descriptors_.at(f);
-			lseek(desc.get(), 0, SEEK_SET);
-
-			char buf[65536*4];
-			uint64_t data_read=0;
-			while(data_read<result_->sizes_.at(f))
-			{
-				size_t bytes=read(desc.get(), buf, sizeof(buf)) | libc_die;
-				write(tmp_desc.get(), buf, bytes);
-				data_read+=bytes;
-				total+=bytes;
-			}
-		}
-
-		on_finish_(tmp_desc, total);
+//		on_finish_(tmp_desc, total);
 	}
 }

@@ -86,9 +86,7 @@ void file_uploader::operator()(agenda_ptr agenda)
 			zipped_callback on_finish=boost::bind(
 						&file_uploader::start_upload, shared_from_this(),
 						agenda, up_data, _1, true);
-			sync_task_ptr task(new file_compressor(path_,
-												   conn_->scratch_path_,
-												   on_finish));
+			sync_task_ptr task(new file_compressor(path_, conn_, on_finish));
 			agenda->schedule(task);
 		} else
 			start_upload(agenda, up_data, handle_t(), do_compress);
