@@ -413,6 +413,8 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
 	curl_easy_perform(curl_) | die;
+	if (result.find("<Error>")!=-1)
+		err(errWarn) << "Upload failed: "<<result;
 	std::cerr << "Upload data " << result << std::endl;
 
 	if (!etag.empty() &&
