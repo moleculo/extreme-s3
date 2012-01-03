@@ -94,15 +94,14 @@ void file_compressor::operator()(agenda_ptr agenda)
 	if (file_sz<=MINIMAL_BLOCK)
 	{
 		handle_t desc(open(path_.c_str(), O_RDONLY));
-		on_finish_(zip_result_ptr(
-					new compressed_result(desc, file_sz)));
+		on_finish_(desc, file_sz);
 		return;
 	}
 
 	//Start compressing
 	uint64_t num_blocks = file_sz / MINIMAL_BLOCK;
-	if (num_blocks>agenda->advise_capability())
-		num_blocks = agenda->advise_capability();
+	if (num_blocks>get_class_limit())
+		num_blocks = get_class_limit();
 
 	result_=zip_result_ptr(new compressed_result(num_blocks));
 	num_pending_ = num_blocks;
@@ -128,5 +127,31 @@ void file_compressor::on_complete(const handle_t &descriptor, uint64_t num,
 		result_->sizes_.at(num) = resulting_size;
 	}
 	if (num_pending_==0)
-		on_finish_(result_);
+	{
+		//Generate the temp name
+		path tmp_nm = path(scratch_path_) /
+				unique_path("scratchy-%%%%-%%%%");
+		handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT));
+		unlink(tmp_nm.c_str());
+
+		//Concatenate all files
+		uint64_t total=0;
+		for(size_t f=0;f<result_->descriptors_.size();++f)
+		{
+			const handle_t &desc=result_->descriptors_.at(f);
+			lseek(desc.get(), 0, SEEK_SET);
+
+			char buf[65536*4];
+			uint64_t data_read=0;
+			while(data_read<result_->sizes_.at(f))
+			{
+				size_t bytes=read(desc.get(), buf, sizeof(buf)) | libc_die;
+				write(tmp_desc.get(), buf, bytes);
+				data_read+=bytes;
+				total+=bytes;
+			}
+		}
+
+		on_finish_(tmp_desc, total);
+	}
 }

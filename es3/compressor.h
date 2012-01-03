@@ -28,7 +28,7 @@ namespace es3 {
 		}
 	};
 	typedef boost::shared_ptr<compressed_result> zip_result_ptr;
-	typedef std::function<void(zip_result_ptr)> zipped_callback;
+	typedef std::function<void(handle_t, uint64_t)> zipped_callback;
 
 	class file_compressor : public sync_task,
 			public boost::enable_shared_from_this<file_compressor>

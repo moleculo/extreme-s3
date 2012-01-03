@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <boost/bind.hpp>
 #include "workaround.hpp"
 #include "compressor.h"
 
@@ -72,7 +73,7 @@ void file_uploader::operator()(agenda_ptr agenda)
 
 	VLOG(2) << "Starting upload of " << path_ << " as "
 			  << remote_;
-	if (file_sz<=MIN_PART_SIZE*2)
+	if (file_sz<=MIN_PART_SIZE)
 	{
 		simple_upload(agenda, up_data);
 	} else
@@ -81,13 +82,15 @@ void file_uploader::operator()(agenda_ptr agenda)
 		bool do_compress = should_compress(path_, file_sz);
 		if (do_compress)
 		{
-			zipped_callback on_finish;
+			zipped_callback on_finish=boost::bind(
+						&file_uploader::start_upload, shared_from_this(),
+						agenda, up_data, _1, true);
 			sync_task_ptr task(new file_compressor(path_,
 												   conn_.scratch_path_,
 												   on_finish));
-			compr_agenda_->schedule(task);
+			agenda->schedule(task);
 		} else
-			start_upload(agenda, up_data, do_compress);
+			start_upload(agenda, up_data, handle_t(), do_compress);
 	}
 }
 
@@ -171,9 +174,13 @@ public:
 };
 
 void file_uploader::start_upload(agenda_ptr ag,
-								 upload_content_ptr content, bool compressed)
+								 upload_content_ptr content,
+								 handle_t file,
+								 bool compressed)
 {
-	handle_t file(open(path_.c_str(), O_RDONLY));
+	if (file.get()==0)
+		file=handle_t(open(path_.c_str(), O_RDONLY));
+	lseek64(file.get(), 0, SEEK_SET);
 	uint64_t size = lseek64(file.get(), 0, SEEK_END);
 
 	size_t number_of_parts = size/MIN_PART_SIZE +

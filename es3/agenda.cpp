@@ -13,7 +13,7 @@ agenda_ptr agenda::make_new(size_t thread_num)
 
 agenda::agenda(size_t thread_num) : num_working_()
 {
-	thread_num_ = thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN);
+	thread_num_ = thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+1;
 }
 
 namespace es3
