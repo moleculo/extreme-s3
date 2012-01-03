@@ -395,7 +395,7 @@ public:
 	size_t do_read(char *bufptr, size_t size)
 	{
 		size_t tocopy = std::min(size_-written_, uint64_t(size));
-		size_t res=tocopy;//read(descriptor_.get(), bufptr, tocopy);
+		size_t res=read(descriptor_.get(), bufptr, tocopy);
 		if (res>0)
 		{
 			MD5_Update(&md5_ctx, bufptr, res);
