@@ -401,7 +401,7 @@ public:
 
 	void prime()
 	{
-		size_t res=read(descriptor_.get(), bufptr, tocopy);
+//		size_t res=read(descriptor_.get(), bufptr, tocopy);
 	}
 
 	size_t do_read(char *bufptr, size_t size)
