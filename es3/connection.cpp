@@ -366,8 +366,11 @@ class read_data
 	uint64_t written_;
 	MD5_CTX md5_ctx;
 public:
+	time_t last_read;
+
 	read_data(const handle_t &descriptor, size_t size, size_t offset) :
-		descriptor_(descriptor), offset_(offset), size_(size), written_()
+		descriptor_(descriptor), offset_(offset), size_(size), written_(),
+		last_read()
 	{
 		MD5_Init(&md5_ctx);
 		uint64_t res=lseek64(descriptor_.get(), offset_, SEEK_SET);
@@ -392,11 +395,8 @@ public:
 	size_t do_read(char *bufptr, size_t size)
 	{
 		size_t tocopy = std::min(size_-written_, uint64_t(size));
-		time_t f1=time(NULL);
+		last_read=time(NULL);
 		size_t res=read(descriptor_.get(), bufptr, tocopy);
-		time_t f2=time(NULL);
-		if (f2-f1>5)
-			std::cerr<<"!!!!!!! "<< (f2-f1) <<std::endl;
 		if (res>0)
 		{
 			MD5_Update(&md5_ctx, bufptr, res);
@@ -432,9 +432,11 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
+	time_t start=time(NULL);
 	curl_easy_perform(curl_) | die;
 	if (result.find("<Error>")!=std::string::npos)
-		err(errWarn) << "Upload failed: "<<result;
+		err(errWarn) << "Interval" << (data.last_read-start) <<
+						"Upload failed: "<<result;
 	std::cerr << "Upload data " << result << std::endl;
 
 	if (!etag.empty() &&
