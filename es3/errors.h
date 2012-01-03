@@ -33,7 +33,7 @@ namespace es3 {
 		virtual ~result_code_t(){}
 
 		code_e code() const { return code_; }
-		const std::string& desc() const { return desc_; }
+		std::string desc() const { return desc_; }
 		bool ok() const {return code_==errNone;}
 	private:
 		code_e code_;
