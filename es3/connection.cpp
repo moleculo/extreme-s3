@@ -381,7 +381,7 @@ public:
 		if (res<0)
 			res | libc_die;
 
-		pre_read_.resize(std::min(size_t(16*1024*1024+1), size));
+		pre_read_.resize(std::min(size_t(16*1024*1024), size));
 		prime_offset_=cur_primed_=0;
 		prime();
 	}

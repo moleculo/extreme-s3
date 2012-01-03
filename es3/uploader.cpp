@@ -168,7 +168,8 @@ void file_uploader::start_upload(agenda_ptr ag,
 	handle_t file(open(path_.c_str(), O_RDONLY));
 	uint64_t size = lseek64(file.get(), 0, SEEK_END);
 
-	size_t number_of_parts = size/MIN_PART_SIZE;
+	size_t number_of_parts = size/MIN_PART_SIZE +
+			((size%MIN_PART_SIZE)==0? 0:1);
 	if (number_of_parts>MAX_PART_NUM)
 		number_of_parts = MAX_PART_NUM;
 	content->num_parts_ = number_of_parts;
