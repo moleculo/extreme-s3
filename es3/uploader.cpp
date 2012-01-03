@@ -13,7 +13,7 @@
 
 #define MIN_PART_SIZE 5242880
 #define MIN_ALLOWED_PART_SIZE 5242880
-#define MAX_PART_NUM 200
+#define MAX_PART_NUM 300
 
 using namespace es3;
 using namespace boost::filesystem;
@@ -125,9 +125,9 @@ public:
 		VLOG(2) << "Starting upload of a part " << num_ << " of "
 				<< remote_;
 
-//		struct sched_param param;
-//		param.sched_priority = 1+num_*90/content_->num_parts_;
-//		pthread_setschedparam(pthread_self(), SCHED_RR, &param);
+		struct sched_param param;
+		param.sched_priority = 1+num_*90/content_->num_parts_;
+		pthread_setschedparam(pthread_self(), SCHED_RR, &param);
 
 		std::string part_path=remote_+
 				"?partNumber="+int_to_string(num_+1)
