@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <strings.h>
 #include "scope_guard.h"
+#include <fcntl.h>
+#include <errno.h>
 
 using namespace es3;
 
@@ -367,7 +369,7 @@ class read_data
 	MD5_CTX md5_ctx;
 
 	std::string pre_read_;
-	size_t cur_primed_;
+	size_t cur_primed_, prime_offset_;
 public:
 	time_t last_read;
 
@@ -381,7 +383,7 @@ public:
 			res | libc_die;
 
 		pre_read_.resize(65536*10);
-		cur_primed_=0;
+		prime_offset_=cur_primed_=0;
 		prime();
 	}
 
@@ -401,12 +403,31 @@ public:
 
 	void prime()
 	{
-//		size_t res=read(descriptor_.get(), bufptr, tocopy);
+		size_t can_read = pre_read_.size()-cur_primed_;
+		if (can_read==0)
+			return;
+
+		size_t res=read(descriptor_.get(), &pre_read_[cur_primed_],
+						pre_read_.size()-cur_primed_) | libc_die;
+		cur_primed_+=res;
 	}
 
 	size_t do_read(char *bufptr, size_t size)
 	{
 		size_t tocopy = std::min(size_-written_, uint64_t(16384));//uint64_t(size));
+
+		size_t remaining = cur_primed_-prime_offset_;
+		if (remaining!=0)
+		{
+			size_t ln_read = std::min(remaining, tocopy);
+			MD5_Update(&md5_ctx, &pre_read_[0]+prime_offset_, ln_read);
+			memcpy(bufptr, &pre_read_[0]+prime_offset_, ln_read);
+			prime_offset_+=ln_read;
+			written_+=ln_read;
+			last_read=time(NULL);
+			return ln_read;
+		}
+
 		size_t res=read(descriptor_.get(), bufptr, tocopy);
 		if (res>0)
 		{
