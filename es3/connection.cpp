@@ -435,8 +435,7 @@ std::string s3_connection::upload_data(const std::string &path,
 	time_t start=time(NULL);
 	curl_easy_perform(curl_);// | die;
 	if (result.find("<Error>")!=std::string::npos)
-		err(errWarn) << "!!!!Interval" << (data.last_read-start) <<
-						"!!!!! failed: "<<result;
+		err(errWarn) << "!!!!! failed: "<< (data.last_read-start);
 	//std::cerr << "Upload data " << result << std::endl;
 
 	if (!etag.empty() &&
