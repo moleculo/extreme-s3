@@ -44,6 +44,17 @@ s3_connection::s3_connection(const connection_data &conn_data)
 		err(errFatal) << "can't init CURL";
 }
 
+static int sockopt_callback(void *clientp,
+		curl_socket_t sock, curlsocktype purpose)
+{
+	int sock_buf_size = 1024*256;
+	setsockopt(sock, SOL_SOCKET, SO_SNDBUF,
+				(char *)&sock_buf_size, sizeof(sock_buf_size)) | libc_die;
+	setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+				(char *)&sock_buf_size, sizeof(sock_buf_size)) | libc_die;
+	return 0;
+}
+
 void s3_connection::prepare(const std::string &verb,
 		  const std::string &path,
 		  const header_map_t &opts)
@@ -71,7 +82,9 @@ void s3_connection::prepare(const std::string &verb,
 	header_list_ = authenticate_req(header_list_, verb, cur_path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
 	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 65536*4);
+
 	curl_easy_setopt(curl_, CURLOPT_TCP_NODELAY, 1);
+	curl_easy_setopt(curl_, CURLOPT_SOCKOPTFUNCTION, &sockopt_callback);
 //	curl_easy_setopt(curl_, CURLOPT_TIMEOUT, 5);
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
