@@ -433,9 +433,9 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
 	time_t start=time(NULL);
-	curl_easy_perform(curl_) | die;
+	curl_easy_perform(curl_);// | die;
 	if (result.find("<Error>")!=std::string::npos)
-		err(errWarn) << "Interval" << (data.last_read-start) <<
+		err(errWarn) << "!!!!Interval" << (data.last_read-start) <<
 						"Upload failed: "<<result;
 	std::cerr << "Upload data " << result << std::endl;
 
