@@ -47,7 +47,7 @@ s3_connection::s3_connection(const connection_data &conn_data)
 static int sockopt_callback(void *clientp,
 		curl_socket_t sock, curlsocktype purpose)
 {
-	int sock_buf_size = 8192;
+	int sock_buf_size = 1024*1024;
 	setsockopt(sock, SOL_SOCKET, SO_SNDBUF,
 				(char *)&sock_buf_size, sizeof(sock_buf_size)) | libc_die;
 	setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
