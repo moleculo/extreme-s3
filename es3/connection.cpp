@@ -365,6 +365,9 @@ class read_data
 
 	uint64_t written_;
 	MD5_CTX md5_ctx;
+
+	std::string pre_read_;
+	size_t cur_primed_;
 public:
 	time_t last_read;
 
@@ -376,6 +379,10 @@ public:
 		uint64_t res=lseek64(descriptor_.get(), offset_, SEEK_SET);
 		if (res<0)
 			res | libc_die;
+
+		pre_read_.resize(65536*10);
+		cur_primed_=0;
+		prime();
 	}
 
 	std::string get_md5()
@@ -392,9 +399,14 @@ public:
 					bufptr, size*nitems);
 	}
 
+	void prime()
+	{
+		size_t res=read(descriptor_.get(), bufptr, tocopy);
+	}
+
 	size_t do_read(char *bufptr, size_t size)
 	{
-		size_t tocopy = std::min(size_-written_, uint64_t(size));
+		size_t tocopy = std::min(size_-written_, 16384);//uint64_t(size));
 		size_t res=read(descriptor_.get(), bufptr, tocopy);
 		if (res>0)
 		{
