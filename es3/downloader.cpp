@@ -1,5 +1,6 @@
 #include "downloader.h"
 #include "workaround.hpp"
+#include "context.h"
 
 using namespace es3;
 using namespace boost::filesystem;

@@ -14,19 +14,16 @@ namespace es3 {
 	class file_uploader : public sync_task,
 			public boost::enable_shared_from_this<file_uploader>
 	{
-		const connection_data conn_;
+		const context_ptr conn_;
 		const std::string path_;
 		const std::string remote_;
 		const std::string etag_;
-		agenda_ptr compr_agenda_;
 	public:
-		file_uploader(const connection_data &conn,
+		file_uploader(const context_ptr &conn,
 					  const std::string &path,
 					  const std::string &remote,
-					  const std::string &etag,
-					  agenda_ptr compr_agenda)
-			: conn_(conn), path_(path), remote_(remote), etag_(etag),
-			  compr_agenda_(compr_agenda)
+					  const std::string &etag)
+			: conn_(conn), path_(path), remote_(remote), etag_(etag)
 		{
 		}
 
@@ -40,10 +37,10 @@ namespace es3 {
 
 	class file_deleter : public sync_task
 	{
-		const connection_data conn_;
+		const context_ptr conn_;
 		const std::string remote_;
 	public:
-		file_deleter(const connection_data &conn,
+		file_deleter(const context_ptr &conn,
 					  const std::string &remote)
 			: conn_(conn), remote_(remote)
 		{

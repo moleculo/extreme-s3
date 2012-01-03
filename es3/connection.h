@@ -9,31 +9,8 @@ struct curl_slist;
 
 namespace es3 {
 
-	struct ci_string_less :
-		public std::binary_function<std::string, std::string, bool>
-	{
-		ES3LIB_PUBLIC bool operator()(const std::string &lhs,
-									  const std::string &rhs) const;
-	};
-
-	template<typename K, typename V, typename C, typename A, typename K2>
-		V try_get(const std::map<K,V,C,A> &map, const K2 &key, const V &def=V())
-	{
-		const typename std::map<K,V,C,A>::const_iterator pos=map.find(key);
-		if (pos==map.end()) return def;
-		return pos->second;
-	}
-
-	struct connection_data
-	{
-		bool use_ssl_;
-		std::string bucket_;
-		std::string api_key_, secret_key;
-		std::string local_root_, remote_root_;
-		std::string scratch_path_;
-		bool upload_;
-		bool delete_missing_;
-	};
+	class conn_context;
+	typedef boost::shared_ptr<conn_context> context_ptr;
 
 	typedef std::map<std::string, std::string, ci_string_less> header_map_t;
 
@@ -56,11 +33,10 @@ namespace es3 {
 	class s3_connection
 	{
 		CURL *curl_;
-		const connection_data conn_data_;
+		const context_ptr conn_data_;
 		struct curl_slist *header_list_;
 	public:
-		s3_connection(const connection_data &conn_data);
-//					  const header_map_t &opts = header_map_t());
+		s3_connection(const context_ptr &conn_data);
 		~s3_connection();
 
 		std::string read_fully_def(const std::string &verb,

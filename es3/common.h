@@ -94,6 +94,21 @@ namespace es3 {
 		handle_t dup() const;
 		int get() const {return fileno_;}
 	};
+
+	struct ci_string_less :
+		public std::binary_function<std::string, std::string, bool>
+	{
+		ES3LIB_PUBLIC bool operator()(const std::string &lhs,
+									  const std::string &rhs) const;
+	};
+
+	template<typename K, typename V, typename C, typename A, typename K2>
+		V try_get(const std::map<K,V,C,A> &map, const K2 &key, const V &def=V())
+	{
+		const typename std::map<K,V,C,A>::const_iterator pos=map.find(key);
+		if (pos==map.end()) return def;
+		return pos->second;
+	}
 };
 
 #endif // COMMON_H

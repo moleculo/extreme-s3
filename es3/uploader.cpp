@@ -1,6 +1,7 @@
 #include "uploader.h"
 #include "scope_guard.h"
 #include "errors.h"
+#include "context.h"
 
 #include <iostream>
 #include <stdint.h>
@@ -46,7 +47,7 @@ struct es3::upload_content
 	upload_content() : num_parts_(), num_completed_() {}
 
 	std::mutex lock_;
-	connection_data conn_;
+	context_ptr conn_;
 	time_t mtime_;
 
 	size_t num_parts_;
@@ -86,7 +87,7 @@ void file_uploader::operator()(agenda_ptr agenda)
 						&file_uploader::start_upload, shared_from_this(),
 						agenda, up_data, _1, true);
 			sync_task_ptr task(new file_compressor(path_,
-												   conn_.scratch_path_,
+												   conn_->scratch_path_,
 												   on_finish));
 			agenda->schedule(task);
 		} else

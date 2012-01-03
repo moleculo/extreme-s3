@@ -6,7 +6,7 @@
 #include <condition_variable>
 
 namespace es3 {
-	struct connection_data;
+	struct conn_context;
 	struct remote_file;
 	typedef boost::shared_ptr<remote_file> remote_file_ptr;
 	class agenda;

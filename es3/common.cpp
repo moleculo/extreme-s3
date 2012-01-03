@@ -136,3 +136,9 @@ handle_t::~handle_t()
 	if (fileno_)
 		close(fileno_);
 }
+
+bool es3::ci_string_less::operator()(const std::string &lhs,
+									 const std::string &rhs) const
+{
+	return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ? 1 : 0;
+}

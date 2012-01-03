@@ -6,6 +6,7 @@ SET(es3_SRCS
 	common.cpp
 	compressor.cpp
 	connection.cpp
+	context.cpp
 	downloader.cpp
 	errors.cpp
 	main.cpp
@@ -18,6 +19,7 @@ SET(es3_INCLUDES
 	common.h
 	compressor.h
 	connection.h
+	context.h
 	downloader.h
 	errors.h
 	scope_guard.h

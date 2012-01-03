@@ -1,4 +1,5 @@
 #include "connection.h"
+#include "context.h"
 #include <curl/curl.h>
 #include "errors.h"
 #include <openssl/hmac.h>
@@ -12,12 +13,6 @@
 #include <errno.h>
 
 using namespace es3;
-
-bool es3::ci_string_less::operator()(const std::string &lhs,
-									 const std::string &rhs) const
-{
-	return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ? 1 : 0;
-}
 
 void operator | (const CURLcode &code, const die_t &die)
 {
@@ -39,7 +34,7 @@ std::string escape(const std::string &str)
 	return std::string(res);
 }
 
-s3_connection::s3_connection(const connection_data &conn_data)
+s3_connection::s3_connection(const context_ptr &conn_data)
 	: curl_(curl_easy_init()), conn_data_(conn_data), header_list_()
 {
 	if (!curl_)
@@ -101,8 +96,8 @@ void s3_connection::set_url(const std::string &path, const std::string &args)
 	if (cur_path.empty())
 		cur_path.append("/");
 
-	std::string url = conn_data_.use_ssl_?"https://" : "http://";
-	url.append(conn_data_.bucket_).append(".s3.amazonaws.com");
+	std::string url = conn_data_->use_ssl_?"https://" : "http://";
+	url.append(conn_data_->bucket_).append(".s3.amazonaws.com");
 	url.append(cur_path);
 	url.append(args);
 	curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()) | die;
@@ -131,7 +126,7 @@ curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
 	}
 
 	//Signature
-	std::string canonicalizedResource="/"+conn_data_.bucket_+path;
+	std::string canonicalizedResource="/"+conn_data_->bucket_+path;
 	std::string stringToSign = verb + "\n" +
 		try_get(opts, "content-md5") + "\n" +
 		try_get(opts, "content-type") + "\n" +
@@ -142,7 +137,7 @@ curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
 	if (sign_res.empty())
 		sign_res.empty();
 
-	std::string auth="Authorization: AWS "+conn_data_.api_key_+":"+sign_res;
+	std::string auth="Authorization: AWS "+conn_data_->api_key_+":"+sign_res;
 	return curl_slist_append(header_list, auth.c_str());
 }
 
@@ -151,7 +146,7 @@ std::string s3_connection::sign(const std::string &str)
 	if (str.length() >= INT_MAX)
 		throw std::bad_exception();
 
-	const std::string &secret_key = conn_data_.secret_key;
+	const std::string &secret_key = conn_data_->secret_key;
 	char md[EVP_MAX_MD_SIZE+1]={0};
 	unsigned int md_len=0;
 	HMAC(EVP_sha1(),
@@ -277,7 +272,7 @@ void s3_connection::deconstruct_file(file_map_t &res,
 			ptr->name_ = component;
 			ptr->full_name_ = cur_parent?
 						(cur_parent->full_name_+"/"+component) :
-						(conn_data_.remote_root_+component);
+						(conn_data_->remote_root_+component);
 			ptr->parent_ = cur_parent;
 			(*cur_pos)[component] = ptr;
 		}
@@ -292,7 +287,7 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	remote_file_ptr fl(new remote_file());
 	fl->is_dir_ = false;
 	fl->name_ = cur_name;
-	fl->full_name_ = conn_data_.remote_root_+name;
+	fl->full_name_ = conn_data_->remote_root_+name;
 	fl->etag_ = etag;
 	fl->size_ = atoll(size.c_str());
 	fl->parent_ = cur_parent;

@@ -3,6 +3,7 @@
 #include "common.h"
 #include "scope_guard.h"
 #include "connection.h"
+#include "context.h"
 #include "agenda.h"
 #include "sync.h"
 
@@ -15,8 +16,8 @@ int main(int argc, char **argv)
 {
 	int verbosity = 0, thread_num = 0;
 
-	connection_data cd;
-	cd.use_ssl_ = false;
+	context_ptr cd(new conn_context());
+	cd->use_ssl_ = false;
 
 	po::options_description desc("Allowed options");
 	desc.add_options()
@@ -28,33 +29,33 @@ int main(int argc, char **argv)
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
 			"Number of threads used [0 - autodetect]")
 		("scratch-dir,r", po::value<std::string>(
-			 &cd.scratch_path_)->default_value("/tmp")->required(),
+			 &cd->scratch_path_)->default_value("/tmp")->required(),
 			"Path to the scratch directory")
 
 		("access-key,a", po::value<std::string>(
-				 &cd.api_key_)->required(),
+				 &cd->api_key_)->required(),
 			"Amazon S3 API key")
 		("secret-key,s", po::value<std::string>(
-			 &cd.secret_key)->required(),
+			 &cd->secret_key)->required(),
 			"Amazon S3 secret key")
 		("use-ssl,l", po::value<bool>(
-			 &cd.use_ssl_)->default_value(false),
+			 &cd->use_ssl_)->default_value(false),
 			"Use SSL for communications with the Amazon S3 servers")
 
-		("do-upload,u", po::value<bool>(&cd.upload_)->default_value(true),
+		("do-upload,u", po::value<bool>(&cd->upload_)->default_value(true),
 			"Upload local changes to the server")
 		("delete-missing,d", po::value<bool>(
-			 &cd.delete_missing_)->default_value(false),
+			 &cd->delete_missing_)->default_value(false),
 			"Delete missing files from the remote side")
 
 		("sync-dir,i", po::value<std::string>(
-			 &cd.local_root_)->required(),
+			 &cd->local_root_)->required(),
 			"Local directory")
 		("bucket-name,o", po::value<std::string>(
-			 &cd.bucket_)->required(),
+			 &cd->bucket_)->required(),
 			"Name of Amazon S3 bucket")
 		("remote-path,p", po::value<std::string>(
-			 &cd.remote_root_)->default_value("/")->required(),
+			 &cd->remote_root_)->default_value("/")->required(),
 			"Path in the Amazon S3 bucket")
 	;
 
@@ -90,8 +91,7 @@ int main(int argc, char **argv)
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
 	agenda_ptr ag=agenda::make_new(thread_num);
-	agenda_ptr compr_ag=agenda::make_new(0);
-	synchronizer sync(ag, compr_ag, cd);
+	synchronizer sync(ag, cd);
 	sync.create_schedule();
 	ag->run();
 

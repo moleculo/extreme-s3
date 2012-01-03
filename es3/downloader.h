@@ -9,14 +9,14 @@ namespace es3 {
 
 	class file_downloader : public sync_task
 	{
-		const connection_data conn_;
+		const context_ptr conn_;
 		const bool delete_dir_;
 		const std::string path_;
 		const std::string remote_;
 		const std::string etag_;
 
 	public:
-		file_downloader(const connection_data &conn,
+		file_downloader(const context_ptr &conn,
 					  const std::string &path,
 					  const std::string &remote,
 					  const std::string &etag,
