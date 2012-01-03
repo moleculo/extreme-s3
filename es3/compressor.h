@@ -50,6 +50,8 @@ namespace es3 {
 		{
 		}
 
+		virtual std::string get_class() const { return "compression"; }
+		virtual int get_class_limit() const { return 8; }
 		virtual void operator()(agenda_ptr agenda);
 	private:
 		void on_complete(const handle_t &descriptor, uint64_t num,

@@ -16,6 +16,9 @@ namespace es3 {
 	{
 	public:
 		virtual ~sync_task() {}
+
+		virtual std::string get_class() const { return "def"; }
+		virtual int get_class_limit() const { return -1; }
 		virtual void operator()(agenda_ptr agenda) = 0;
 	};
 	typedef boost::shared_ptr<sync_task> sync_task_ptr;
@@ -30,6 +33,7 @@ namespace es3 {
 		std::condition_variable condition_;
 		std::mutex m_;
 
+		std::map<std::string, int> classes_;
 		friend class task_executor;
 	public:
 		static boost::shared_ptr<agenda> make_new(size_t thread_num);

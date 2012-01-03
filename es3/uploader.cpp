@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include "workaround.hpp"
+#include "compressor.h"
 
 #define COMPRESSION_THRESHOLD 10000000
 #define MIN_RATIO 0.9d
@@ -20,7 +21,6 @@ using namespace boost::filesystem;
 
 static bool should_compress(const std::string &p, uint64_t sz)
 {
-	return false;
 	std::string ext=get_file(path(p).extension());
 	if (ext==".gz" || ext==".zip" ||
 			ext==".tgz" || ext==".bz2" || ext==".7z")
@@ -79,7 +79,15 @@ void file_uploader::operator()(agenda_ptr agenda)
 	{
 		//Rest in pieces!
 		bool do_compress = should_compress(path_, file_sz);
-		start_upload(agenda, up_data, do_compress);
+		if (do_compress)
+		{
+			zipped_callback on_finish;
+			sync_task_ptr task(new file_compressor(path_,
+												   conn_.scratch_path_,
+												   on_finish));
+			compr_agenda_->schedule(task);
+		} else
+			start_upload(agenda, up_data, do_compress);
 	}
 }
 

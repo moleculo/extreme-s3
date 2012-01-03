@@ -40,17 +40,29 @@ namespace es3
 					}
 				}
 
-				sync_task_ptr cur_task = agenda_->tasks_.back();
-				agenda_->tasks_.pop_back();
-				agenda_->num_working_++;
-				return cur_task;
+				for(auto iter=agenda_->tasks_.begin();
+					iter!=agenda_->tasks_.end();++iter)
+				{
+					sync_task_ptr cur_task = *iter;
+					//Check if there are too many tasks of this type running
+					int cur_num=agenda_->classes_[cur_task->get_class()];
+					if (cur_task->get_class_limit()!=-1 &&
+							cur_task->get_class_limit()<=cur_num)
+						continue;
+
+					agenda_->tasks_.erase(iter);
+					agenda_->num_working_++;
+					agenda_->classes_[cur_task->get_class()]++;
+					return cur_task;
+				}
 			}
 		}
 
-		void cleanup()
+		void cleanup(sync_task_ptr cur_task)
 		{
 			u_guard_t lock(agenda_->m_);
 			agenda_->num_working_--;
+			agenda_->classes_[cur_task->get_class()]++;
 			if (agenda_->tasks_.empty() && agenda_->num_working_==0)
 				agenda_->condition_.notify_all();
 		}
@@ -87,12 +99,12 @@ namespace es3
 						}
 					} catch(...)
 					{
-						cleanup();
+						cleanup(cur_task);
 						throw;
 					}
 				}
 
-				cleanup();
+				cleanup(cur_task);
 			}
 		}
 	};
