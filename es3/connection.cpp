@@ -83,8 +83,8 @@ void s3_connection::prepare(const std::string &verb,
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
 	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 65536*4);
 
-	curl_easy_setopt(curl_, CURLOPT_TCP_NODELAY, 1);
-	curl_easy_setopt(curl_, CURLOPT_SOCKOPTFUNCTION, &sockopt_callback);
+//	curl_easy_setopt(curl_, CURLOPT_TCP_NODELAY, 1);
+//	curl_easy_setopt(curl_, CURLOPT_SOCKOPTFUNCTION, &sockopt_callback);
 //	curl_easy_setopt(curl_, CURLOPT_TIMEOUT, 5);
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
