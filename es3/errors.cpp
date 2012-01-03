@@ -11,7 +11,8 @@ extern ES3LIB_PUBLIC const result_code_t es3::sok=result_code_t();
 es3_exception::es3_exception(const result_code_t &code) : code_(code)
 {
 	std::stringstream s;
-	s<<("Error code: ")<<code.code()<<", description: "<<code.desc();
+	s<<("Error code: ")<<code.code()<<", description: '"<<code.desc()<<"'";
+	s.flush();
 	what_=s.str();
 }
 
