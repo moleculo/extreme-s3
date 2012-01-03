@@ -1,6 +1,5 @@
 #include "compressor.h"
 #include <zlib.h>
-#include <zlibdefs.h>
 #include "scope_guard.h"
 #include "workaround.hpp"
 #include "errors.h"

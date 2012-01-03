@@ -30,8 +30,8 @@ namespace es3 {
 		~compressed_result()
 		{
 			if (was_compressed_)
-				for(auto f : files_)
-					if (!f.empty()) unlink(f.c_str());
+				for(auto f =files_.begin();f!=files_.end();++f)
+					if (!f->empty()) unlink(f->c_str());
 		}
 	};
 	typedef boost::shared_ptr<compressed_result> zip_result_ptr;
