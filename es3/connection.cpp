@@ -381,7 +381,7 @@ public:
 		if (res<0)
 			res | libc_die;
 
-		pre_read_.resize(std::min(size_t(16*1024*1024), size-offset));
+		pre_read_.resize(std::min(size_t(16*1024*1024+1), size-offset));
 		prime_offset_=cur_primed_=0;
 		prime();
 	}
@@ -404,7 +404,7 @@ public:
 	{
 		size_t res=read(descriptor_.get(), &pre_read_[0],
 						pre_read_.size()) | libc_die;
-		cur_primed_+=res;
+		cur_primed_=res;
 	}
 
 	size_t do_read(char *bufptr, size_t size)
