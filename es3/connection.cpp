@@ -403,18 +403,14 @@ public:
 
 	void prime()
 	{
-		size_t can_read = pre_read_.size()-cur_primed_;
-		if (can_read==0)
-			return;
-
-		size_t res=read(descriptor_.get(), &pre_read_[cur_primed_],
-						pre_read_.size()-cur_primed_) | libc_die;
+		size_t res=read(descriptor_.get(), &pre_read_[0],
+						pre_read_.size()) | libc_die;
 		cur_primed_+=res;
 	}
 
 	size_t do_read(char *bufptr, size_t size)
 	{
-		size_t tocopy = std::min(size_-written_, uint64_t(16384));//uint64_t(size));
+		size_t tocopy = std::min(size_-written_, uint64_t(size));
 
 		size_t remaining = cur_primed_-prime_offset_;
 		if (remaining!=0)
