@@ -405,6 +405,7 @@ public:
 		size_t res=read(descriptor_.get(), &pre_read_[0],
 						pre_read_.size()) | libc_die;
 		cur_primed_=res;
+		std::cerr<<"REQUESTED " << pre_read_.size() << " and got "<<res <<std::endl;
 	}
 
 	size_t do_read(char *bufptr, size_t size)
