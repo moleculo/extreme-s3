@@ -20,7 +20,7 @@ bool es3::ci_string_less::operator()(const std::string &lhs,
 void operator | (const CURLcode &code, const die_t &die)
 {
 	if (code!=CURLE_OK)
-		err(errFatal) << "curl error: "
+		err(errWarn) << "curl error: "
 					  << curl_easy_strerror(code);
 }
 
