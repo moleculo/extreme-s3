@@ -251,8 +251,8 @@ void file_uploader::start_upload(agenda_ptr ag,
 								 bool compressed)
 {
 	uint64_t size = 0;
-	for(uint64_t cur : files->sizes_)
-		size+=cur;
+	for(auto iter=files->sizes_.begin();iter!=files->sizes_.end();++iter)
+		size+=*iter;
 
 	size_t number_of_segments= size/conn_->segment_size_ +
 			((size%conn_->segment_size_)==0 ? 0:1);
