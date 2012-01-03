@@ -30,7 +30,7 @@ namespace es3 {
 		virtual void operator()(agenda_ptr agenda);
 	private:
 		void start_upload(agenda_ptr ag,
-						  upload_content_ptr content, handle_t file,
+						  upload_content_ptr content, zip_result_ptr files,
 						  bool compressed);
 		void simple_upload(agenda_ptr ag, upload_content_ptr content);
 	};

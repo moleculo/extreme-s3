@@ -1,5 +1,17 @@
 #include "context.h"
 #include <unistd.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <boost/filesystem.hpp>
+#include "scope_guard.h"
+#include "errors.h"
+
+using namespace boost::filesystem;
+
+#define SEGMENT_SIZE (6*1024*1024)
+#define MAX_IN_FLIGHT 100
+#define COMPRESSION_THRESHOLD 10000000
+#define MIN_RATIO 0.9d
 
 using namespace es3;
 
@@ -36,5 +48,28 @@ conn_context::conn_context() :
 	in_flight_()
 {
 	max_in_flight_=MAX_IN_FLIGHT;
+	max_readers_=6;
+	segment_size_=SEGMENT_SIZE;
 	max_compressors_=sysconf(_SC_NPROCESSORS_ONLN)+1;
+}
+
+bool es3::should_compress(const std::string &p, uint64_t sz)
+{
+	std::string ext=path(p).extension().c_str();
+	if (ext==".gz" || ext==".zip" ||
+			ext==".tgz" || ext==".bz2" || ext==".7z")
+		return false;
+
+	if (sz <= COMPRESSION_THRESHOLD)
+		return false;
+
+	//Check for GZIP magic
+	int fl=open(p.c_str(), O_RDONLY) | libc_die;
+	ON_BLOCK_EXIT(&close, fl);
+
+	char magic[4]={0};
+	read(fl, magic, 4) | libc_die;
+	if (magic[0]==0x1F && magic[1] == 0x8B && magic[2]==0x8 && magic[3]==0x8)
+		return false;
+	return true;
 }

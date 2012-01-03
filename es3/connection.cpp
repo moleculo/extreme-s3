@@ -357,28 +357,17 @@ std::pair<time_t, uint64_t> s3_connection::find_mtime_and_size(
 	return result;
 }
 
-class read_data
+class buf_data
 {
-	handle_t descriptor_;
-	uint64_t offset_, size_;
-
-	uint64_t written_;
+	const char *buf_;
+	size_t total_size_;
+	size_t written_;
 	MD5_CTX md5_ctx;
-
-	std::string pre_read_;
-	size_t cur_primed_, prime_offset_;
 public:
-	read_data(const handle_t &descriptor, size_t size, size_t offset) :
-		descriptor_(descriptor), offset_(offset), size_(size), written_()
+	buf_data(const char *buf, size_t total_size)
+		: buf_(buf), total_size_(total_size), written_()
 	{
 		MD5_Init(&md5_ctx);
-		uint64_t res=lseek64(descriptor_.get(), offset_, SEEK_SET);
-		if (res<0)
-			res | libc_die;
-
-		pre_read_.resize(std::min(size_t(16*1024*1024), size));
-		prime_offset_=cur_primed_=0;
-		prime();
 	}
 
 	std::string get_md5()
@@ -391,56 +380,28 @@ public:
 	static size_t read_func(char *bufptr, size_t size,
 							size_t nitems, void *userp)
 	{
-		return reinterpret_cast<read_data*>(userp)->do_read(
+		return reinterpret_cast<buf_data*>(userp)->simple_read(
 					bufptr, size*nitems);
 	}
 
-	void prime()
+	size_t simple_read(char *bufptr, size_t size)
 	{
-		size_t res=read(descriptor_.get(), &pre_read_[0],
-						pre_read_.size()) | libc_die;
-		cur_primed_=res;
-//		std::cerr<<"REQUESTED " << pre_read_.size() <<
-//				   " and got "<<res << " size is " << size_ <<std::endl;
-	}
-
-	size_t do_read(char *bufptr, size_t size)
-	{
-		size_t tocopy = std::min(size_-written_, uint64_t(size));
-
-		size_t remaining = cur_primed_-prime_offset_;
-		if (remaining!=0)
+		size_t tocopy = std::min(total_size_-written_, size);
+		if (tocopy!=0)
 		{
-			size_t ln_read = std::min(remaining, tocopy);
-			MD5_Update(&md5_ctx, &pre_read_[0]+prime_offset_, ln_read);
-			memcpy(bufptr, &pre_read_[0]+prime_offset_, ln_read);
-			prime_offset_+=ln_read;
-			written_+=ln_read;
-			return ln_read;
+			memcpy(bufptr, buf_+written_, tocopy);
+			MD5_Update(&md5_ctx, bufptr, tocopy);
+			written_+=tocopy;
 		}
-
-//		std::cerr << "HIT READ" << std::endl;
-		size_t res=read(descriptor_.get(), bufptr, tocopy);
-		if (res>0)
-		{
-			MD5_Update(&md5_ctx, bufptr, res);
-			written_+=res;
-		}
-		return res;
+		return tocopy;
 	}
 };
 
 std::string s3_connection::upload_data(const std::string &path,
-	const handle_t &descriptor, uint64_t size, uint64_t offset,
-	const header_map_t& opts)
+	const char *data, uint64_t size, const header_map_t& opts)
 {
-	if (size==0)
-	{
-		lseek64(descriptor.get(), 0, SEEK_SET);
-		size=lseek64(descriptor.get(), 0, SEEK_END);
-	}
 	std::string etag;
-	read_data data(descriptor, size, offset);
+	buf_data read_data(data, size);
 
 	prepare("PUT", path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
@@ -448,8 +409,8 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
 	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
-	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
-	curl_easy_setopt(curl_, CURLOPT_READDATA, &data);
+	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &buf_data::read_func);
+	curl_easy_setopt(curl_, CURLOPT_READDATA, &read_data);
 
 	std::string result;
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
@@ -460,7 +421,7 @@ std::string s3_connection::upload_data(const std::string &path,
 		err(errWarn) << "Upload failed, retrying. " << result;
 
 	if (!etag.empty() &&
-			strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))
+			strcasecmp(etag.c_str(), ("\""+read_data.get_md5()+"\"").c_str()))
 		abort(); //Data corruption. This SHOULD NOT happen!
 
 	return etag;
@@ -484,31 +445,6 @@ std::string s3_connection::initiate_multipart(
 	return node->Value();
 }
 
-struct buf_data
-{
-	const char *buf_;
-	size_t raw_size_;
-	size_t written_;
-
-	static size_t read_func(char *bufptr, size_t size,
-							size_t nitems, void *userp)
-	{
-		return reinterpret_cast<buf_data*>(userp)->simple_read(
-					bufptr, size*nitems);
-	}
-
-	size_t simple_read(char *bufptr, size_t size)
-	{
-		size_t tocopy = std::min(raw_size_-written_, size);
-		if (tocopy!=0)
-		{
-			memcpy(bufptr, buf_+written_, tocopy);
-			written_+=tocopy;
-		}
-		return tocopy;
-	}
-};
-
 std::string s3_connection::complete_multipart(const std::string &path,
 	const std::vector<std::string> &etags)
 {
@@ -528,7 +464,7 @@ std::string s3_connection::complete_multipart(const std::string &path,
 
 	prepare("POST", path);
 
-	buf_data data_params {data.c_str(), data.length(), 0};
+	buf_data data_params(data.c_str(), data.size());
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
 	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(data.size()));
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &buf_data::read_func);

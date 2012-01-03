@@ -5,9 +5,7 @@
 #include <condition_variable>
 #include <boost/enable_shared_from_this.hpp>
 
-#define SEGMENT_SIZE (6*1024*1024)
 #define MAX_SEGMENTS 9999
-#define MAX_IN_FLIGHT 100
 
 namespace es3 {
 
@@ -29,7 +27,10 @@ namespace es3 {
 		bool upload_;
 		bool delete_missing_;
 
-		size_t max_in_flight_, max_compressors_;
+		size_t max_in_flight_,
+			max_compressors_,
+			max_readers_,
+			segment_size_;
 
 		conn_context();
 		segment_ptr get_segment();
@@ -44,6 +45,7 @@ namespace es3 {
 	};
 	typedef boost::shared_ptr<conn_context> context_ptr;
 
+	bool should_compress(const std::string &p, uint64_t sz);
 }; //namespace es3
 
 #endif //CONTEXT_H

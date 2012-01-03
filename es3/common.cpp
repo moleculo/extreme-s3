@@ -128,7 +128,18 @@ handle_t handle_t::dup() const
 {
 	if (!fileno_)
 		return handle_t();
-	return handle_t(::dup(fileno_) | libc_die);
+	return handle_t(::dup(fileno_));
+}
+
+uint64_t handle_t::size() const
+{
+	if (fileno_==0)
+		return 0;
+	int64_t pos=lseek64(fileno_, 0, SEEK_SET) | libc_die;
+	int64_t res=lseek64(fileno_, 0, SEEK_END);
+	lseek64(fileno_, -pos, SEEK_SET) | libc_die; //Restore file pos
+	if (res<0) res | libc_die;
+	return res;
 }
 
 handle_t::~handle_t()

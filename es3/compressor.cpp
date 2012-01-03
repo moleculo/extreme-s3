@@ -27,7 +27,6 @@ namespace es3
 			path tmp_nm = path(parent_->context_->scratch_path_) /
 					unique_path("scratchy-%%%%-%%%%");
 			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT));
-			unlink(tmp_nm.c_str());
 
 			uint64_t offset = (total_sz_/block_total_)*block_num_;
 			uint64_t size = total_sz_/block_total_;
@@ -83,7 +82,7 @@ namespace es3
 			consumed += cur_consumed;
 			write(tmp_desc.get(), buf_out, cur_consumed) | libc_die;
 
-			parent_->on_complete(tmp_desc, block_num_, consumed);
+			parent_->on_complete(tmp_nm.c_str(), block_num_, consumed);
 		}
 	};
 }; //namespace es3
@@ -116,14 +115,14 @@ void file_compressor::operator()(agenda_ptr agenda)
 	}
 }
 
-void file_compressor::on_complete(const handle_t &descriptor, uint64_t num,
+void file_compressor::on_complete(const std::string &name, uint64_t num,
 				 uint64_t resulting_size)
 {
 	{
 		guard_t lock(m_);
 
 		num_pending_--;
-		result_->descriptors_.at(num) = descriptor;
+		result_->files_.at(num) = name;
 		result_->sizes_.at(num) = resulting_size;
 	}
 	if (num_pending_==0)

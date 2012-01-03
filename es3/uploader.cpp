@@ -11,9 +11,6 @@
 #include "workaround.hpp"
 #include "compressor.h"
 
-#define COMPRESSION_THRESHOLD 10000000
-#define MIN_RATIO 0.9d
-
 #define MIN_PART_SIZE (16*1024*1024)
 #define MIN_ALLOWED_PART_SIZE (16*1024*1024)
 #define MAX_PART_NUM 10000
@@ -21,38 +18,178 @@
 using namespace es3;
 using namespace boost::filesystem;
 
-static bool should_compress(const std::string &p, uint64_t sz)
-{
-	std::string ext=get_file(path(p).extension());
-	if (ext==".gz" || ext==".zip" ||
-			ext==".tgz" || ext==".bz2" || ext==".7z")
-		return false;
-
-	if (sz <= COMPRESSION_THRESHOLD)
-		return false;
-
-	//Check for GZIP magic
-	int fl=open(p.c_str(), O_RDONLY) | libc_die;
-	ON_BLOCK_EXIT(&close, fl);
-
-	char magic[4]={0};
-	read(fl, magic, 4) | libc_die;
-	if (magic[0]==0x1F && magic[1] == 0x8B && magic[2]==0x8 && magic[3]==0x8)
-		return false;
-	return true;
-}
-
 struct es3::upload_content
 {
 	upload_content() : num_parts_(), num_completed_() {}
-
-	std::mutex lock_;
 	context_ptr conn_;
+	std::string upload_id_;
+	std::string remote_;
 	time_t mtime_;
 
+	std::mutex lock_;
 	size_t num_parts_;
 	size_t num_completed_;
 	std::vector<std::string> etags_;
+};
+
+class part_upload_task : public sync_task
+{
+	size_t num_;
+	upload_content_ptr content_;
+
+	segment_ptr segment_;
+public:
+	part_upload_task(size_t num, upload_content_ptr content,
+					 segment_ptr segment)
+		: num_(num), content_(content), segment_(segment)
+	{
+	}
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		VLOG(2) << "Starting upload of a part " << num_ << " of "
+				<< content_->remote_;
+
+		struct sched_param param;
+		param.sched_priority = 1+num_*90/content_->num_parts_;
+		pthread_setschedparam(pthread_self(), SCHED_RR, &param);
+
+		std::string part_path=content_->remote_+
+				"?partNumber="+int_to_string(num_+1)
+				+"&uploadId="+content_->upload_id_;
+
+		s3_connection up(content_->conn_);
+		std::string etag=up.upload_data(part_path,
+										&segment_->data_[0],
+										segment_->data_.size());
+		if (etag.empty())
+			err(errWarn) << "Failed to upload a part " << num_;
+
+		//Check if the upload is completed
+		guard_t g(content_->lock_);
+		content_->num_completed_++;
+		content_->etags_.at(num_) = etag;
+
+		VLOG(2) << "Uploaded part " << num_ << " of "<< content_->remote_
+				<< " with etag=" << etag
+				<< ", total=" << content_->num_parts_
+				<< ", sent=" << content_->num_completed_ << ".";
+
+		if (content_->num_completed_ == content_->num_parts_)
+		{
+			VLOG(2) << "Assembling "<< content_->remote_ <<".";
+			//We've completed the upload!
+			s3_connection up2(content_->conn_);
+			up2.complete_multipart(content_->remote_+
+								   "?uploadId="+content_->upload_id_,
+								   content_->etags_);
+		}
+	}
+};
+
+class file_pump : public sync_task,
+		public boost::enable_shared_from_this<file_pump>
+{
+	upload_content_ptr content_;
+	zip_result_ptr files_;
+	size_t cur_segment_, number_of_segments_;
+public:
+	file_pump(upload_content_ptr content,
+		zip_result_ptr files, size_t cur_segment, size_t number_of_segments) :
+		content_(content), files_(files),
+		cur_segment_(cur_segment), number_of_segments_(number_of_segments)
+	{
+	}
+
+	virtual std::string get_class() const
+	{
+		return "pump"+int_to_string(get_class_limit());
+	}
+
+	virtual int get_class_limit() const
+	{
+		return content_->conn_->max_readers_;
+	}
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		context_ptr ctx = content_->conn_;
+		uint64_t start_offset = ctx->segment_size_*cur_segment_;
+
+		//First, skip to our piece
+		uint64_t skipped_so_far=0, offset_within_=0;
+		int cur_piece=0;
+		for(int f=0;f<files_->sizes_.size();++f)
+		{
+			uint64_t cur_size = files_->sizes_.at(f);
+			if (start_offset<(skipped_so_far+cur_size))
+			{
+				cur_piece = f;
+				offset_within_ = start_offset-skipped_so_far;
+				assert(offset_within_<cur_size);
+				break;
+			}
+			skipped_so_far+=cur_size;
+		}
+
+		//Now read data!!!
+		for(int f=0;f<number_of_segments_;++f)
+		{
+			segment_ptr seg = ctx->get_segment();
+			seg->data_.resize(ctx->segment_size_, 0);
+
+			uint64_t segment_read_so_far=0;
+			while(segment_read_so_far<seg->data_.size())
+			{
+				//Note that we're duplicating the handle because other
+				//file pumps might be using it
+				handle_t cur_fl(open(
+									files_->files_.at(cur_piece).c_str(), O_RDONLY));
+				lseek64(cur_fl.get(), offset_within_, SEEK_SET) | libc_die;
+				uint64_t cur_piece_size=files_->sizes_.at(cur_piece);
+
+				uint64_t remaining_size =
+						std::min(ctx->segment_size_-segment_read_so_far,
+								 cur_piece_size-offset_within_);
+				while(remaining_size>0)
+				{
+					char buf[65536*8];
+					size_t chunk=std::min(remaining_size,
+										  uint64_t(sizeof(buf)));
+					size_t res=read(cur_fl.get(), buf, chunk) | libc_die;
+					assert(res!=0);
+					memcpy(&seg->data_[segment_read_so_far], buf, res);
+
+					segment_read_so_far+=res;
+					offset_within_+=res;
+					remaining_size-=res;
+				}
+
+				//We've run out of file piece, switch to the next one
+				if (cur_piece==files_->sizes_.size()-1)
+				{
+					//No other pieces and this is the last segment
+					seg->data_.resize(segment_read_so_far);
+				} else
+				{
+					if (cur_piece_size==offset_within_)
+					{
+						cur_piece++;
+						offset_within_=0;
+					} else
+					{
+						assert(segment_read_so_far==ctx->segment_size_);
+					}
+				}
+			}
+			assert(segment_read_so_far==ctx->segment_size_
+				   || f==number_of_segments_-1);
+
+			sync_task_ptr task(new part_upload_task(cur_segment_+f,
+													content_, seg));
+			agenda->schedule(task);
+		}
+	}
 };
 
 void file_uploader::operator()(agenda_ptr agenda)
@@ -71,144 +208,77 @@ void file_uploader::operator()(agenda_ptr agenda)
 	upload_content_ptr up_data(new upload_content());
 	up_data->conn_ = conn_;
 	up_data->mtime_ = mtime;
+	up_data->remote_ = remote_;
 
 	VLOG(2) << "Starting upload of " << path_ << " as "
 			  << remote_;
-	if (file_sz<=MIN_PART_SIZE)
+
+	bool do_compress = should_compress(path_, file_sz);
+	if (0 && do_compress)
 	{
-		simple_upload(agenda, up_data);
+//		zipped_callback on_finish=boost::bind(
+//					&file_uploader::start_upload, shared_from_this(),
+//					agenda, up_data, _1, true);
+//		sync_task_ptr task(new file_compressor(path_, conn_, on_finish));
+//		agenda->schedule(task);
 	} else
 	{
-		//Rest in pieces!
-		bool do_compress = should_compress(path_, file_sz);
-		if (do_compress)
-		{
-			zipped_callback on_finish=boost::bind(
-						&file_uploader::start_upload, shared_from_this(),
-						agenda, up_data, _1, true);
-			sync_task_ptr task(new file_compressor(path_, conn_, on_finish));
-			agenda->schedule(task);
-		} else
-			start_upload(agenda, up_data, handle_t(), do_compress);
+		handle_t fl(open(path_.c_str(), O_RDONLY) | libc_die);
+		zip_result_ptr files(new compressed_result(path_, fl.size()));
+		start_upload(agenda, up_data, files, false);
 	}
 }
 
-void file_uploader::simple_upload(agenda_ptr ag, upload_content_ptr content)
-{
-	//Simple upload
-	header_map_t hmap;
-	hmap["x-amz-meta-compressed"] = "false";
-	hmap["Content-Type"] = "application/x-binary";
-	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
-	s3_connection up(conn_);
+//void file_uploader::simple_upload(agenda_ptr ag, upload_content_ptr content)
+//{
+//	//Simple upload
+//	header_map_t hmap;
+//	hmap["x-amz-meta-compressed"] = "false";
+//	hmap["Content-Type"] = "application/x-binary";
+//	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
+//	s3_connection up(conn_);
 
-	handle_t file(open(path_.c_str(), O_RDONLY));
-	int64_t sz=lseek64(file.get(), 0, SEEK_END);
-	hmap["x-amz-meta-size"] = int_to_string(sz);
-	std::string etag=up.upload_data(remote_,
-									file, sz, 0, hmap);
-}
-
-class part_upload_task : public sync_task
-{
-	size_t num_;
-	std::string upload_id_;
-
-	const std::string remote_;
-	upload_content_ptr content_;
-
-	handle_t descriptor_;
-	uint64_t offset_, size_;
-public:
-	part_upload_task(size_t num, const std::string &upload_id,
-					 const std::string &remote,
-					 upload_content_ptr content,
-					 handle_t descriptor, uint64_t offset, uint64_t size)
-		: num_(num), upload_id_(upload_id),
-		  remote_(remote), content_(content),
-		  descriptor_(descriptor), offset_(offset), size_(size)
-	{
-	}
-
-	virtual void operator()(agenda_ptr agenda)
-	{
-		VLOG(2) << "Starting upload of a part " << num_ << " of "
-				<< remote_;
-
-		struct sched_param param;
-		param.sched_priority = 1+num_*90/content_->num_parts_;
-		pthread_setschedparam(pthread_self(), SCHED_RR, &param);
-
-		std::string part_path=remote_+
-				"?partNumber="+int_to_string(num_+1)
-				+"&uploadId="+upload_id_;
-		header_map_t hmap;
-		hmap["Content-Type"] = "application/x-binary";
-
-		s3_connection up(content_->conn_);
-		std::string etag=up.upload_data(part_path, descriptor_, size_, offset_,
-										hmap);
-		if (etag.empty())
-			err(errWarn) << "Failed to upload a part " << num_;
-
-		//Check if the upload is completed
-		guard_t g(content_->lock_);
-		content_->num_completed_++;
-		content_->etags_.at(num_) = etag;
-
-		VLOG(2) << "Uploaded part " << num_ << " of "<< remote_
-				<< " with etag=" << etag
-				<< ", total=" << content_->num_parts_
-				<< ", sent=" << content_->num_completed_ << ".";
-
-		if (content_->num_completed_ == content_->num_parts_)
-		{
-			VLOG(2) << "Assembling "<< remote_ <<".";
-			//We've completed the upload!
-			s3_connection up2(content_->conn_);
-			up2.complete_multipart(remote_+"?uploadId="+upload_id_,
-								  content_->etags_);
-		}
-	}
-};
+////	handle_t file(open(path_.c_str(), O_RDONLY));
+////	int64_t sz=lseek64(file.get(), 0, SEEK_END);
+////	hmap["x-amz-meta-size"] = int_to_string(sz);
+////	std::string etag=up.upload_data(remote_,
+////									file, sz, 0, hmap);
+//}
 
 void file_uploader::start_upload(agenda_ptr ag,
 								 upload_content_ptr content,
-								 handle_t file,
+								 zip_result_ptr files,
 								 bool compressed)
 {
-	if (file.get()==0)
-		file=handle_t(open(path_.c_str(), O_RDONLY));
-	lseek64(file.get(), 0, SEEK_SET);
-	uint64_t size = lseek64(file.get(), 0, SEEK_END);
+	uint64_t size = 0;
+	for(uint64_t cur : files->sizes_)
+		size+=cur;
 
-	size_t number_of_parts = size/MIN_PART_SIZE +
-			((size%MIN_PART_SIZE)==0? 0:1);
-	if (number_of_parts>MAX_PART_NUM)
-		number_of_parts = MAX_PART_NUM;
-	content->num_parts_ = number_of_parts;
-	content->etags_.resize(number_of_parts);
+	size_t number_of_segments= size/conn_->segment_size_ +
+			((size%conn_->segment_size_)==0 ? 0:1);
+	if (number_of_segments>MAX_PART_NUM)
+		err(errFatal) << "File "<<remote_ <<" is too big";
+
+	content->num_parts_ = number_of_segments;
+	content->etags_.resize(number_of_segments);
 
 	header_map_t hmap;
 	hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
 	hmap["Content-Type"] = "application/x-binary";
 	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
 	hmap["x-amz-meta-size"] = int_to_string(size);
-
 	s3_connection up(conn_);
-	std::string upload_id=up.initiate_multipart(remote_, hmap);
+	content->upload_id_=up.initiate_multipart(remote_, hmap);
 
-	for(size_t f=0;f<number_of_parts;++f)
+	//Now create file pumps
+	size_t num_per_pump = number_of_segments / conn_->max_readers_ + 1;
+	for(int f=0;f<number_of_segments;f+=num_per_pump)
 	{
-		uint64_t offset = (size/number_of_parts)*f;
-		uint64_t cur_size = size/number_of_parts;
-		if (size-offset < cur_size)
-			cur_size = size- offset;
+		size_t num_cur = number_of_segments-f;
+		if (num_cur > num_per_pump)
+			num_cur = num_per_pump;
 
-		boost::shared_ptr<part_upload_task> task(
-					new part_upload_task(f, upload_id,
-										 remote_, content, file.dup(),
-										 offset, cur_size));
+		sync_task_ptr task(new file_pump(content, files, f, num_cur));
 		ag->schedule(task);
 	}
 }

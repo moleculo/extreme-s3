@@ -10,22 +10,28 @@ namespace es3 {
 
 	struct compressed_result
 	{
-		std::vector<handle_t> descriptors_;
+		std::vector<std::string> files_;
 		std::vector<uint64_t> sizes_;
 		bool was_compressed_;
 
 		compressed_result(size_t sz)
 		{
-			descriptors_.resize(sz);
+			files_.resize(sz);
 			sizes_.resize(sz);
 			was_compressed_ = true;
 		}
 
-		compressed_result(const handle_t &desc, uint64_t sz)
+		compressed_result(const std::string &file, uint64_t sz)
 		{
-			descriptors_.push_back(desc);
+			files_.push_back(file);
 			sizes_.push_back(sz);
 			was_compressed_=false;
+		}
+		~compressed_result()
+		{
+			if (was_compressed_)
+				for(auto f : files_)
+					if (!f.empty()) unlink(f.c_str());
 		}
 	};
 	typedef boost::shared_ptr<compressed_result> zip_result_ptr;
@@ -62,7 +68,7 @@ namespace es3 {
 		}
 		virtual void operator()(agenda_ptr agenda);
 	private:
-		void on_complete(const handle_t &descriptor, uint64_t num,
+		void on_complete(const std::string &name, uint64_t num,
 						 uint64_t resulting_size);
 	};
 

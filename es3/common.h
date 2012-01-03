@@ -91,6 +91,7 @@ namespace es3 {
 		handle_t& operator = (const handle_t &other);
 		~handle_t();
 
+		uint64_t size() const;
 		handle_t dup() const;
 		int get() const {return fileno_;}
 	};
