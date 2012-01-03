@@ -373,11 +373,8 @@ class read_data
 	std::string pre_read_;
 	size_t cur_primed_, prime_offset_;
 public:
-	time_t last_read;
-
 	read_data(const handle_t &descriptor, size_t size, size_t offset) :
-		descriptor_(descriptor), offset_(offset), size_(size), written_(),
-		last_read()
+		descriptor_(descriptor), offset_(offset), size_(size), written_()
 	{
 		MD5_Init(&md5_ctx);
 		uint64_t res=lseek64(descriptor_.get(), offset_, SEEK_SET);
@@ -422,7 +419,6 @@ public:
 			memcpy(bufptr, &pre_read_[0]+prime_offset_, ln_read);
 			prime_offset_+=ln_read;
 			written_+=ln_read;
-			last_read=time(NULL);
 			return ln_read;
 		}
 
@@ -432,7 +428,6 @@ public:
 			MD5_Update(&md5_ctx, bufptr, res);
 			written_+=res;
 		}
-		last_read=time(NULL);
 		return res;
 	}
 };
@@ -463,15 +458,9 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
-	time_t start=time(NULL);
 	curl_easy_perform(curl_) | die;
 	if (result.find("<Error>")!=std::string::npos)
-	{
-		std::cerr << "!!!!! failed: " <<
-					 int_to_string(data.last_read-start) << "==" << std::endl;
-		err(errWarn) << str.c_str();
-	}
-	//std::cerr << "Upload data " << result << std::endl;
+		err(errWarn) << "Upload failed, retrying. " << result;
 
 	if (!etag.empty() &&
 			strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))
