@@ -74,11 +74,11 @@ namespace es3
 						const result_code_t &code = ex.err();
 						if (code.code()==errNone)
 						{
-							VLOG(1) << ex.what();
+							VLOG(1) << "INFO: " << ex.what();
 							continue;
 						} else if (code.code()==errWarn)
 						{
-							VLOG(0) << ex.what();
+							VLOG(0) << "WARN: " << ex.what();
 							continue;
 						} else
 						{
