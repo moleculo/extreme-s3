@@ -413,7 +413,7 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
 	curl_easy_perform(curl_) | die;
-	std::cerr << result << std::endl;
+	std::cerr << "Upload data " << result << std::endl;
 
 	if (!etag.empty() &&
 			strcasecmp(etag.c_str(), ("\""+data.get_md5()+"\"").c_str()))
@@ -494,8 +494,8 @@ std::string s3_connection::complete_multipart(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &read_data);
 
-	curl_easy_perform(curl_);
+	curl_easy_perform(curl_) | die;
 
-	VLOG(2) << read_data;
+	VLOG(2) << "Complete multipart " << read_data;
 	return read_data;
 }
