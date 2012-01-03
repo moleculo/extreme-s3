@@ -403,6 +403,7 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
 
 	read_data data(descriptor, size, offset);
+	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
 	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &read_data::read_func);
