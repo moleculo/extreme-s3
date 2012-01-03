@@ -83,7 +83,7 @@ void s3_connection::prepare(const std::string &verb,
 
 	header_list_ = authenticate_req(header_list_, verb, cur_path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
-	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 16384);
+	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 16384*4);
 
 //	curl_easy_setopt(curl_, CURLOPT_TCP_NODELAY, 1);
 //	curl_easy_setopt(curl_, CURLOPT_SOCKOPTFUNCTION, &sockopt_callback);
@@ -384,7 +384,7 @@ public:
 		if (res<0)
 			res | libc_die;
 
-		pre_read_.resize(25*1024*1024);//65536*10);
+		pre_read_.resize(5*1024*1024);//65536*10);
 		prime_offset_=cur_primed_=0;
 		prime();
 	}
