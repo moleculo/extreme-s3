@@ -439,18 +439,17 @@ std::string s3_connection::upload_data(const std::string &path,
 	const handle_t &descriptor, uint64_t size, uint64_t offset,
 	const header_map_t& opts)
 {
-	prepare("PUT", path, opts);
 	if (size==0)
 	{
 		lseek64(descriptor.get(), 0, SEEK_SET);
 		size=lseek64(descriptor.get(), 0, SEEK_END);
 	}
-
 	std::string etag;
+	read_data data(descriptor, size, offset);
+
+	prepare("PUT", path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
-
-	read_data data(descriptor, size, offset);
 	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
 	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
