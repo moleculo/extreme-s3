@@ -70,7 +70,7 @@ void s3_connection::prepare(const std::string &verb,
 
 	header_list_ = authenticate_req(header_list_, verb, cur_path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
-	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 65536*4);
+	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 65536);
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
 	set_url(cur_path, "");
@@ -413,7 +413,7 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
 	curl_easy_perform(curl_) | die;
-	if (result.find("<Error>")!=-1)
+	if (result.find("<Error>")!=std::string::npos)
 		err(errWarn) << "Upload failed: "<<result;
 	std::cerr << "Upload data " << result << std::endl;
 
