@@ -90,7 +90,14 @@ namespace es3 {
 			boost::throw_exception(es3_exception(code));
 	}
 
-	ES3LIB_PUBLIC int operator | (const int res, const libc_die_t &);
+	ES3LIB_PUBLIC void throw_libc_err();
+
+	template<class T> T operator | (const T res, const libc_die_t &)
+	{
+		if (res>=0)
+			return res;
+		throw_libc_err();
+	}
 
 #define TRYIT(expr) try{ expr; } catch(const es3_exception &ex) { \
 		return ex.err(); \

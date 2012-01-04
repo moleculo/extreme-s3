@@ -16,13 +16,10 @@ es3_exception::es3_exception(const result_code_t &code) : code_(code)
 	what_=s.str();
 }
 
-int es3::operator | (const int res, const libc_die_t &)
+void es3::throw_libc_err()
 {
-	if (res>=0)
-		return res;
 	char buf[1024]={0};
-
 	strerror_r(errno, buf, 1023);
-	err(errFatal) << "Got error: " << buf;
+	err(errFatal) << "Got error: " << std::string(buf);
 	//Unreachable
 }
