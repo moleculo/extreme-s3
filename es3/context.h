@@ -27,12 +27,13 @@ namespace es3 {
 		bool upload_;
 		bool delete_missing_;
 
-		size_t max_in_flight_,
+		int max_in_flight_,
 			max_compressors_,
 			max_readers_,
 			segment_size_;
 
 		conn_context();
+		void validate();
 		segment_ptr get_segment();
 	private:
 		conn_context(const conn_context &);

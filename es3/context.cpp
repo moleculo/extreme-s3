@@ -9,6 +9,7 @@
 using namespace boost::filesystem;
 
 #define SEGMENT_SIZE (6*1024*1024)
+#define MIN_SEGMENT_SIZE (6*1024*1024)
 #define MAX_IN_FLIGHT 200
 #define COMPRESSION_THRESHOLD 10000000
 #define MIN_RATIO 0.9d
@@ -47,10 +48,22 @@ segment_ptr conn_context::get_segment()
 conn_context::conn_context() :
 	in_flight_()
 {
-	max_in_flight_=MAX_IN_FLIGHT;
+	max_in_flight_=MAX_IN_FLIGHT/2;
 	max_readers_=sysconf(_SC_NPROCESSORS_ONLN)+1;
 	segment_size_=SEGMENT_SIZE;
 	max_compressors_=sysconf(_SC_NPROCESSORS_ONLN)+1;
+}
+
+void conn_context::validate()
+{
+	if (max_in_flight_>MAX_IN_FLIGHT || max_in_flight_<=0)
+		max_in_flight_=MAX_IN_FLIGHT;
+	if (max_readers_<=0)
+		max_readers_=sysconf(_SC_NPROCESSORS_ONLN)+1;
+	if (segment_size_<MIN_SEGMENT_SIZE)
+		segment_size_=MIN_SEGMENT_SIZE;
+	if (max_compressors_<=0)
+		max_compressors_=sysconf(_SC_NPROCESSORS_ONLN)*2;
 }
 
 bool es3::should_compress(const std::string &p, uint64_t sz)

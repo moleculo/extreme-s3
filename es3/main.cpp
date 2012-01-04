@@ -57,6 +57,15 @@ int main(int argc, char **argv)
 		("remote-path,p", po::value<std::string>(
 			 &cd->remote_root_)->default_value("/")->required(),
 			"Path in the Amazon S3 bucket")
+
+		("segment-size", po::value<int>(&cd->segment_size_)->default_value(0),
+			"Segment size in bytes [0 - autodetect, 6291456 - minimum]")
+		("segments-in-flight", po::value<int>(&cd->max_in_flight_)->default_value(0),
+			"Number of segments in-flight [0 - autodetect]")
+		("reader-threads", po::value<int>(&cd->max_readers_)->default_value(0),
+			"Number of filesystem reader/writer threads [0 - autodetect]")
+		("compressor-threads", po::value<int>(&cd->max_compressors_)->default_value(0),
+			"Number of compressor threads [0 - autodetect]")
 	;
 
 	po::variables_map vm;
