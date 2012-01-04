@@ -75,19 +75,28 @@ int main(int argc, char **argv)
 	;
 
 	po::variables_map vm;
-	po::store(po::parse_command_line(argc, argv, desc), vm);
 
-	if (argc < 2 || vm.count("help"))
+	try
 	{
-		std::cout << "Extreme S3 - fast rsync\n" << desc;
-		return 1;
-	}
+		po::store(po::parse_command_line(argc, argv, desc), vm);
 
-	if (vm.count("config"))
+		if (argc < 2 || vm.count("help"))
+		{
+			std::cout << "Extreme S3 - fast rsync\n" << desc;
+			return 1;
+		}
+
+		if (vm.count("config"))
+		{
+			// Parse the file and store the options
+			std::string config_file = vm["config"].as<std::string>();
+			po::store(po::parse_config_file<char>(config_file.c_str(),desc), vm);
+		}
+	} catch(const boost::program_options::error &err)
 	{
-		// Parse the file and store the options
-		std::string config_file = vm["config"].as<std::string>();
-		po::store(po::parse_config_file<char>(config_file.c_str(),desc), vm);
+		std::cerr << "Failed to parse configuration options. Error "
+				  << err.what() << std::endl;
+		return 2;
 	}
 
 	try
