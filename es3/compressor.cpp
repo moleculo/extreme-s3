@@ -16,23 +16,23 @@ namespace es3
 	struct compress_task : public sync_task
 	{
 		compressor_ptr parent_;
-		uint64_t block_num_, block_total_, total_sz_;
+		uint64_t block_num_, offset_, size_, block_total_;
 
 		virtual void operator()(agenda_ptr agenda)
 		{
+			std::pair<std::string,uint64_t> res=do_compress();
+			parent_->on_complete(res.first, block_num_, res.second);
+		}
+
+		std::pair<std::string,uint64_t> do_compress()
+		{
 			handle_t src(open(parent_->path_.c_str(), O_RDONLY));
+			lseek64(src.get(), offset_, SEEK_SET) | libc_die;
 
 			//Generate the temp name
 			path tmp_nm = path(parent_->context_->scratch_path_) /
 					unique_path("scratchy-%%%%-%%%%");
 			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT));
-
-			uint64_t offset = (total_sz_/block_total_)*block_num_;
-			uint64_t size = total_sz_/block_total_;
-			if (total_sz_-offset < size)
-				size = total_sz_-offset;
-			//Seek pos
-			lseek64(src.get(), offset, SEEK_SET) | libc_die;
 
 			VLOG(2) << "Compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;
@@ -47,11 +47,14 @@ namespace es3
 			char buf[65536*4];
 			char buf_out[65536];
 			size_t consumed=0;
-			while(true)
+			size_t raw_consumed=0;
+			while(raw_consumed<size_)
 			{
-				ssize_t ln=read(src.get(), buf, sizeof(buf));
-				if (ln<=0)
-					break;
+				size_t chunk = std::min(uint64_t(sizeof(buf)),
+										size_-raw_consumed);
+				ssize_t ln=read(src.get(), buf, chunk) | libc_die;
+				assert(ln>0);
+				raw_consumed+=ln;
 
 				stream.avail_in = ln;
 				stream.next_in = (Bytef*)buf;
@@ -70,18 +73,20 @@ namespace es3
 					consumed += cur_consumed;
 				} while(stream.avail_in!=0);
 			}
+			assert(raw_consumed==size_);
 
+			//We're writing the epilogue
 			stream.avail_out= sizeof(buf_out);
 			stream.next_out = (Bytef*)buf_out;
-			int c_err=deflate(&stream, Z_FINISH); //We're writing the epilogue
-			if (c_err!=Z_STREAM_END)
+			int c_err=deflate(&stream, Z_FINISH);
+			if (c_err!=Z_STREAM_END) //Epilogue must always fit
 				err(errFatal) << "Failed to finish compression of "
 							  << parent_->path_;
 			size_t cur_consumed=sizeof(buf_out) - stream.avail_out;
 			consumed += cur_consumed;
 			write(tmp_desc.get(), buf_out, cur_consumed) | libc_die;
 
-			parent_->on_complete(tmp_nm.c_str(), block_num_, consumed);
+			return std::pair<std::string,uint64_t>(tmp_nm.c_str(), consumed);
 		}
 	};
 }; //namespace es3
@@ -92,14 +97,21 @@ void file_compressor::operator()(agenda_ptr agenda)
 	if (file_sz<=MINIMAL_BLOCK)
 	{
 		handle_t desc(open(path_.c_str(), O_RDONLY));
-		on_finish_(desc, file_sz);
+		on_finish_(zip_result_ptr(new compressed_result(path_, desc.size())));
 		return;
 	}
 
 	//Start compressing
-	uint64_t num_blocks = file_sz / MINIMAL_BLOCK;
-	if (num_blocks>get_class_limit())
-		num_blocks = get_class_limit();
+	uint64_t estimate_num_blocks = file_sz / MINIMAL_BLOCK;
+	assert(estimate_num_blocks>0);
+
+	if (estimate_num_blocks>get_class_limit())
+		estimate_num_blocks = get_class_limit();
+	//estimate_num_blocks=1;
+	uint64_t block_sz = file_sz / estimate_num_blocks;
+	assert(block_sz>0);
+	uint64_t num_blocks = file_sz / block_sz +
+			((file_sz%block_sz)==0?0:1);
 
 	result_=zip_result_ptr(new compressed_result(num_blocks));
 	num_pending_ = num_blocks;
@@ -109,7 +121,11 @@ void file_compressor::operator()(agenda_ptr agenda)
 		ptr->parent_=shared_from_this();
 		ptr->block_num_=f;
 		ptr->block_total_=num_blocks;
-		ptr->total_sz_=file_sz;
+		ptr->offset_=block_sz*f;
+		ptr->size_=file_sz-ptr->offset_;
+		if (ptr->size_>block_sz)
+			ptr->size_=block_sz;
+
 		agenda->schedule(ptr);
 	}
 }
@@ -126,6 +142,6 @@ void file_compressor::on_complete(const std::string &name, uint64_t num,
 	}
 	if (num_pending_==0)
 	{
-//		on_finish_(tmp_desc, total);
+		on_finish_(result_);
 	}
 }

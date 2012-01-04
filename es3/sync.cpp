@@ -79,8 +79,7 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 			{
 				if (to_->upload_)
 				{
-					process_dir(&cur_remote_child->children_,
-						dent_path, new_remote_path+"/");
+					process_dir(0, dent_path, new_remote_path+"/");
 				}
 				else
 				{

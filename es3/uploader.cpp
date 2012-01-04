@@ -24,6 +24,7 @@ struct es3::upload_content
 	context_ptr conn_;
 	std::string upload_id_;
 	std::string remote_;
+	uint64_t orig_size_;
 	time_t mtime_;
 
 	std::mutex lock_;
@@ -209,18 +210,20 @@ void file_uploader::operator()(agenda_ptr agenda)
 	up_data->conn_ = conn_;
 	up_data->mtime_ = mtime;
 	up_data->remote_ = remote_;
+	up_data->orig_size_=file_sz;
 
 	VLOG(2) << "Starting upload of " << path_ << " as "
 			  << remote_;
 
 	bool do_compress = should_compress(path_, file_sz);
-	if (0 && do_compress)
+	if (do_compress)
 	{
-//		zipped_callback on_finish=boost::bind(
-//					&file_uploader::start_upload, shared_from_this(),
-//					agenda, up_data, _1, true);
-//		sync_task_ptr task(new file_compressor(path_, conn_, on_finish));
-//		agenda->schedule(task);
+		zipped_callback on_finish=boost::bind(
+					&file_uploader::start_upload, shared_from_this(),
+					agenda, up_data, _1, true);
+
+		sync_task_ptr task(new file_compressor(path_, conn_, on_finish));
+		agenda->schedule(task);
 	} else
 	{
 		handle_t fl(open(path_.c_str(), O_RDONLY) | libc_die);
@@ -266,7 +269,7 @@ void file_uploader::start_upload(agenda_ptr ag,
 	hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
 	hmap["Content-Type"] = "application/x-binary";
 	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
-	hmap["x-amz-meta-size"] = int_to_string(size);
+	hmap["x-amz-meta-size"] = content->orig_size_;
 	s3_connection up(conn_);
 	content->upload_id_=up.initiate_multipart(remote_, hmap);
 
