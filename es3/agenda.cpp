@@ -63,7 +63,8 @@ namespace es3
 			u_guard_t lock(agenda_->m_);
 			agenda_->num_working_--;
 			agenda_->classes_[cur_task->get_class()]--;
-			if (agenda_->tasks_.empty() && agenda_->num_working_==0)
+			if (agenda_->tasks_.empty() && agenda_->num_working_==0 ||
+					cur_task->get_class_limit()!=-1)
 				agenda_->condition_.notify_all();
 		}
 

@@ -26,7 +26,7 @@ namespace es3 {
 
 			u_guard_t guard(parent_->m_);
 			parent_->in_flight_--;
-			parent_->condition_.notify_one();
+			parent_->condition_.notify_all();
 		}
 	};
 
