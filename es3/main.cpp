@@ -51,6 +51,9 @@ int main(int argc, char **argv)
 		("sync-dir,i", po::value<std::string>(
 			 &cd->local_root_)->required(),
 			"Local directory")
+		("zone-name,z", po::value<std::string>(
+			 &cd->zone_)->default_value("s3")->required(),
+			"Name of Amazon S3 zone")
 		("bucket-name,o", po::value<std::string>(
 			 &cd->bucket_)->required(),
 			"Name of Amazon S3 bucket")

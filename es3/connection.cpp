@@ -99,7 +99,8 @@ void s3_connection::set_url(const std::string &path, const std::string &args)
 		cur_path.append("/");
 
 	std::string url = conn_data_->use_ssl_?"https://" : "http://";
-	url.append(conn_data_->bucket_).append(".s3.amazonaws.com");
+	url.append(conn_data_->bucket_).append(".").append(conn_data_->zone_)
+			.append(".amazonaws.com");
 	url.append(cur_path);
 	url.append(args);
 	curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()) | die;

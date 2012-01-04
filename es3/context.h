@@ -20,6 +20,7 @@ namespace es3 {
 	{
 	public:
 		bool use_ssl_;
+		std::string zone_;
 		std::string bucket_;
 		std::string api_key_, secret_key;
 		std::string local_root_, remote_root_;
