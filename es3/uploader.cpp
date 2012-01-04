@@ -212,7 +212,8 @@ void file_uploader::operator()(agenda_ptr agenda)
 	VLOG(2) << "Starting upload of " << path_ << " as "
 			  << remote_;
 
-	bool do_compress = should_compress(path_, file_sz);
+	bool do_compress = should_compress(path_, file_sz) &&
+			conn_->do_compression_;
 	//Prepare upload
 	header_map_t hmap;
 	hmap["x-amz-meta-compressed"] = do_compress ? "true" : "false";

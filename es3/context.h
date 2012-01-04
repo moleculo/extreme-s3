@@ -19,7 +19,7 @@ namespace es3 {
 	class conn_context : public boost::enable_shared_from_this<conn_context>
 	{
 	public:
-		bool use_ssl_;
+		bool use_ssl_, do_compression_;
 		std::string zone_;
 		std::string bucket_;
 		std::string api_key_, secret_key;

@@ -31,6 +31,9 @@ int main(int argc, char **argv)
 		("scratch-dir,r", po::value<std::string>(
 			 &cd->scratch_path_)->default_value("/tmp")->required(),
 			"Path to the scratch directory")
+		("do-compression", po::value<bool>(
+			 &cd->do_compression_)->default_value(true)->required(),
+			"Compress files during upload")
 
 		("access-key,a", po::value<std::string>(
 				 &cd->api_key_)->required(),

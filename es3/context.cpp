@@ -46,7 +46,7 @@ segment_ptr conn_context::get_segment()
 }
 
 conn_context::conn_context() :
-	in_flight_()
+	in_flight_(), do_compression_(), use_ssl_()
 {
 	max_in_flight_=MAX_IN_FLIGHT/2;
 	max_readers_=sysconf(_SC_NPROCESSORS_ONLN)+1;

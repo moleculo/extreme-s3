@@ -362,6 +362,9 @@ file_desc s3_connection::find_mtime_and_size(const std::string &path)
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &result);
 	curl_easy_setopt(curl_, CURLOPT_NOBODY, 1);
 	curl_easy_perform(curl_) | die;
+
+	if (result.raw_size_==0)
+		result.raw_size_=result.remote_size_;
 	return result;
 }
 
