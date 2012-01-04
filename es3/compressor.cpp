@@ -50,8 +50,8 @@ namespace es3
 
 			z_stream stream = {0};
 			deflateInit2(&stream, 1, Z_DEFLATED,
-							   9|16, //15 window bits | GZIP
-							   9,
+							   15|16, //15 window bits | GZIP
+							   8,
 							   Z_DEFAULT_STRATEGY);
 			ON_BLOCK_EXIT(&deflateEnd, &stream);
 
