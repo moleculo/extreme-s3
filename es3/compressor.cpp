@@ -47,8 +47,8 @@ namespace es3
 					   block_total_ << " of " << parent_->path_;
 
 			z_stream stream = {0};
-			deflateInit2(&stream, 8, Z_DEFLATED,
-							   15|16, //15 window bits | GZIP
+			deflateInit2(&stream, 2, Z_DEFLATED,
+							   8|16, //15 window bits | GZIP
 							   8,
 							   Z_DEFAULT_STRATEGY);
 			ON_BLOCK_EXIT(&deflateEnd, &stream);
