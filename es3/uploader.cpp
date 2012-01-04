@@ -7,6 +7,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <boost/bind.hpp>
 #include "workaround.hpp"
 #include "compressor.h"
@@ -197,12 +200,18 @@ void file_uploader::operator()(agenda_ptr agenda)
 	uint64_t file_sz=file_size(path_);
 	time_t mtime=last_write_time(path_);
 
+	struct stat stbuf={0};
+	::stat(path_.c_str(), &stbuf) | libc_die;
+	mode_t mode=stbuf.st_mode & 0777; //Get permissions
+
 	//Check the modification date of the file locally and on the
 	//remote side
 	s3_connection up(conn_);
 	file_desc mod=up.find_mtime_and_size(remote_);
 	if (mod.mtime_==mtime && mod.raw_size_==file_sz)
 		return; //TODO: add an optional MD5 check?
+	//We don't check file mode here, because it doesn't really work
+	//on Windows - we'll get permission loops.
 
 	//Woohoo! We need to upload the file.
 	upload_content_ptr up_data(new upload_content());
@@ -220,6 +229,7 @@ void file_uploader::operator()(agenda_ptr agenda)
 	hmap["Content-Type"] = "application/x-binary";
 	hmap["x-amz-meta-last-modified"] = int_to_string(mtime);
 	hmap["x-amz-meta-size"] = int_to_string(file_sz);
+	hmap["x-amz-meta-file-mode"] = int_to_string(mode);
 	s3_connection up_prep(conn_);
 	up_data->upload_id_=up_prep.initiate_multipart(remote_, hmap);
 

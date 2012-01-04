@@ -119,7 +119,7 @@ public:
 		segment_ptr seg=ctx->get_segment();
 
 		uint64_t start_offset = ctx->segment_size_*cur_segment_;
-		uint64_t size = content_->raw_size_-start_offset;
+		uint64_t size = content_->remote_size_-start_offset;
 		if (size>ctx->segment_size_)
 			size=ctx->segment_size_;
 

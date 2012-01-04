@@ -339,6 +339,10 @@ static size_t find_mtime(void *ptr, size_t size, size_t nmemb, void *userdata)
 	if (cmpr=="true")
 		info->compressed=true;
 
+	std::string md=find_header(ptr, size, nmemb, "x-amz-meta-file-mode");
+	if (!md.empty())
+		info->mode_ = atoll(md.c_str());
+
 	return size*nmemb;
 }
 
@@ -354,6 +358,7 @@ file_desc s3_connection::find_mtime_and_size(const std::string &path)
 {
 	file_desc result;
 	result.compressed=false;
+	result.mode_ = 0664;
 	result.remote_size_=result.raw_size_=0;
 
 	prepare("HEAD", path);

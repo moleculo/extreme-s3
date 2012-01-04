@@ -197,22 +197,13 @@ void file_decompressor::operator()(agenda_ptr agenda)
 			written_so_far+=to_write;
 			write(out_fl.get(), &buf_out[0], to_write) | libc_die;
 
-			if (written_so_far==raw_size_)
-				break;
-
 			if (res == Z_STREAM_END)
 			{
-				z_stream s2={0};
-				inflateInit2(&s2, 15 | 16);
-				s2.avail_in = stream.avail_in;
-				s2.next_in = stream.next_in;
+				//For gzip files with concatenated content
 				inflateEnd(&stream);
-				stream = s2;
+				inflateInit2(&stream, 15 | 16);
 			}
 		}
-
-		if (written_so_far==raw_size_)
-			break;
 	}
 
 	last_write_time(result_, mtime_) ;
