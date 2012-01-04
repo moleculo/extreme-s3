@@ -9,7 +9,7 @@
 using namespace boost::filesystem;
 
 #define SEGMENT_SIZE (6*1024*1024)
-#define MAX_IN_FLIGHT 100
+#define MAX_IN_FLIGHT 200
 #define COMPRESSION_THRESHOLD 10000000
 #define MIN_RATIO 0.9d
 
@@ -48,7 +48,7 @@ conn_context::conn_context() :
 	in_flight_()
 {
 	max_in_flight_=MAX_IN_FLIGHT;
-	max_readers_=6;
+	max_readers_=sysconf(_SC_NPROCESSORS_ONLN)+1;
 	segment_size_=SEGMENT_SIZE;
 	max_compressors_=sysconf(_SC_NPROCESSORS_ONLN)+1;
 }

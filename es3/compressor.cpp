@@ -43,7 +43,6 @@ namespace es3
 					unique_path("scratchy-%%%%-%%%%-%%%%-%%%%");
 			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT,
 								   S_IRUSR|S_IWUSR));
-			std::cerr << "Created " << tmp_nm.c_str() << std::endl;
 
 			VLOG(2) << "Compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;
@@ -100,6 +99,9 @@ namespace es3
 			consumed += cur_consumed;
 			if (cur_consumed!=0)
 				write(tmp_desc.get(), &buf_out[0], cur_consumed) | libc_die;
+
+			VLOG(2) << "Done compressing part " << block_num_ << " out of " <<
+					   block_total_ << " of " << parent_->path_;
 
 			return std::pair<std::string,uint64_t>(tmp_nm.c_str(), consumed);
 		}

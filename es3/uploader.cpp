@@ -144,12 +144,9 @@ public:
 			{
 				//Note that we're duplicating the handle because other
 				//file pumps might be using it
-				std::cerr<<"Opening " <<files_->files_.at(cur_piece).c_str() << std::endl;
 				handle_t cur_fl(open(
 									files_->files_.at(cur_piece).c_str(), O_RDONLY));
-				std::cerr<<"Opened " <<files_->files_.at(cur_piece).c_str() << std::endl;
 				lseek64(cur_fl.get(), offset_within_, SEEK_SET) | libc_die;
-				std::cerr<<"Seeked " <<files_->files_.at(cur_piece).c_str() << std::endl;
 				uint64_t cur_piece_size=files_->sizes_.at(cur_piece);
 
 				uint64_t remaining_size =
