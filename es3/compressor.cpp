@@ -41,7 +41,8 @@ namespace es3
 			//Generate the temp name
 			path tmp_nm = path(parent_->context_->scratch_path_) /
 					unique_path("scratchy-%%%%-%%%%-%%%%-%%%%");
-			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT));
+			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT,
+								   S_IRUSR|S_IWUSR));
 			std::cerr << "Created " << tmp_nm.c_str() << std::endl;
 
 			VLOG(2) << "Compressing part " << block_num_ << " out of " <<
