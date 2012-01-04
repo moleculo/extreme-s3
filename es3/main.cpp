@@ -106,6 +106,14 @@ int main(int argc, char **argv)
 	curl_global_init(CURL_GLOBAL_ALL);
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
+	if (cd->zone_=="s3")
+	{
+		s3_connection conn(cd);
+		std::string region=conn.find_region();
+		if (!region.empty())
+			cd->zone_=region;
+	}
+
 	if (thread_num==0)
 		thread_num=sysconf(_SC_NPROCESSORS_ONLN)+1;
 

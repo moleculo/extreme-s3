@@ -72,6 +72,7 @@ namespace es3 {
 			const std::vector<std::string> &etags);
 		file_desc find_mtime_and_size(const std::string &path);
 
+		std::string find_region();
 	private:
 		void prepare(const std::string &verb,
 				  const std::string &path,

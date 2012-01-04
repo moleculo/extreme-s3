@@ -563,3 +563,22 @@ std::string s3_connection::download_data(const std::string &path,
 
 	return etag;
 }
+
+std::string s3_connection::find_region()
+{
+	std::string list=read_fully("GET", "/?location", header_map_t());
+	TiXmlDocument doc;
+	doc.Parse(list.c_str()); check(doc);
+	TiXmlHandle docHandle(&doc);
+
+	TiXmlNode *n1=docHandle.FirstChild("LocationConstraint").ToNode();
+	if (!n1)
+		err(errFatal) << "Incorrect document format - no location id";
+
+	TiXmlNode *node=docHandle.FirstChild("LocationConstraint")
+			.FirstChild()
+			.ToText();
+	if (!node)
+		return ""; //Default location
+	return node->Value();
+}
