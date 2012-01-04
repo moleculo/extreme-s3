@@ -71,14 +71,14 @@ namespace es3 {
 		const std::string source_;
 		const std::string result_;
 		time_t mtime_;
+		mode_t mode_;
 		bool delete_on_stop_;
-		uint64_t raw_size_;
 	public:
 		file_decompressor(context_ptr context, const std::string &source,
-						  const std::string &result, time_t mtime,
-						  bool delete_on_stop, uint64_t raw_size)
+						  const std::string &result, time_t mtime, mode_t mode,
+						  bool delete_on_stop)
 			: context_(context), source_(source), result_(result),
-			  delete_on_stop_(delete_on_stop), raw_size_(raw_size)
+			  delete_on_stop_(delete_on_stop), mode_(mode)
 		{
 		}
 		~file_decompressor()

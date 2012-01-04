@@ -5,6 +5,7 @@
 #include "errors.h"
 #include <stdio.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 using namespace es3;
 using namespace boost::filesystem;
@@ -22,6 +23,7 @@ struct download_content
 	context_ptr ctx_;
 
 	time_t mtime_;
+	mode_t mode_;
 	size_t num_segments_, segments_read_;
 	size_t remote_size_, raw_size_;
 
@@ -29,7 +31,8 @@ struct download_content
 	bool delete_temp_file_;
 
 	download_content() : mtime_(), num_segments_(), segments_read_(),
-		remote_size_(), raw_size_(), delete_temp_file_(true) {}
+		remote_size_(), raw_size_(), delete_temp_file_(true),
+		mode_(0664) {}
 	~download_content()
 	{
 		if (local_file_!=target_file_ && delete_temp_file_)
@@ -75,11 +78,14 @@ public:
 				//Yep, we do need to decompress it
 				sync_task_ptr dl(new file_decompressor(ctx,
 					content_->local_file_, content_->target_file_,
-					content_->mtime_, true, content_->raw_size_));
+					content_->mtime_, content_->mode_, true));
 				content_->delete_temp_file_=false;
 				agenda->schedule(dl);
 			} else
+			{
+				chmod(content_->target_file_.c_str(), content_->mode_);
 				last_write_time(content_->target_file_, content_->mtime_) ;
+			}
 		}
 	}
 
@@ -170,6 +176,7 @@ void file_downloader::operator()(agenda_ptr agenda)
 		err(errFatal) << "Segment size is too small for " << remote_;
 
 	dc->mtime_=mod.mtime_;
+	dc->mode_=mod.mode_;
 	dc->num_segments_=seg_num;
 	dc->segments_read_=0;
 	dc->remote_size_=mod.remote_size_;
@@ -190,7 +197,7 @@ void file_downloader::operator()(agenda_ptr agenda)
 
 	{
 		handle_t fl(open(dc->local_file_.c_str(),
-						 O_RDWR|O_CREAT, 0640) | libc_die);
+						 O_RDWR|O_CREAT, 0600) | libc_die);
 		fallocate64(fl.get(), 0, 0, dc->remote_size_);
 	}
 
