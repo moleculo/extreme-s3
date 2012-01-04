@@ -114,9 +114,8 @@ void file_compressor::operator()(agenda_ptr agenda)
 	uint64_t estimate_num_blocks = file_sz / MINIMAL_BLOCK;
 	assert(estimate_num_blocks>0);
 
-	if (estimate_num_blocks>get_class_limit())
-		estimate_num_blocks = get_class_limit();
-	//estimate_num_blocks=1;
+	if (estimate_num_blocks> context_->max_compressors_)
+		estimate_num_blocks = context_->max_compressors_;
 	uint64_t block_sz = file_sz / estimate_num_blocks;
 	assert(block_sz>0);
 	uint64_t num_blocks = file_sz / block_sz +
