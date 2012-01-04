@@ -53,6 +53,9 @@ namespace es3 {
 		std::string upload_data(const std::string &path,
 								const char *data, uint64_t size,
 								const header_map_t& opts=header_map_t());
+		std::string download_data(const std::string &path,
+			uint64_t offset, char *data, uint64_t size,
+			const header_map_t& opts=header_map_t());
 
 		std::string initiate_multipart(const std::string &path,
 									   const header_map_t &opts);

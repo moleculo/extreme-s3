@@ -406,7 +406,7 @@ std::string s3_connection::upload_data(const std::string &path,
 	prepare("PUT", path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
-	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+//	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
 	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &buf_data::read_func);
@@ -478,4 +478,71 @@ std::string s3_connection::complete_multipart(const std::string &path,
 
 	VLOG(2) << "Complete multipart " << read_data;
 	return read_data;
+}
+
+class write_data
+{
+	char *buf_;
+	size_t total_size_;
+	size_t written_;
+	MD5_CTX md5_ctx;
+public:
+	write_data(char *buf, size_t total_size)
+		: buf_(buf), total_size_(total_size), written_()
+	{
+		MD5_Init(&md5_ctx);
+	}
+
+	std::string get_md5()
+	{
+		unsigned char md[MD5_DIGEST_LENGTH+1]={0};
+		MD5_Final(md, &md5_ctx);
+		return tobinhex(md, MD5_DIGEST_LENGTH);
+	}
+
+	static size_t write_func(const char *bufptr, size_t size,
+							size_t nitems, void *userp)
+	{
+		return reinterpret_cast<write_data*>(userp)->simple_write(
+					bufptr, size*nitems);
+	}
+
+	size_t simple_write(const char *bufptr, size_t size)
+	{
+		size_t tocopy = std::min(total_size_-written_, size);
+		if (tocopy!=0)
+		{
+			memcpy(buf_+written_, bufptr, tocopy);
+			MD5_Update(&md5_ctx, buf_+written_, tocopy);
+			written_+=tocopy;
+		}
+		return tocopy;
+	}
+};
+
+std::string s3_connection::download_data(const std::string &path,
+	uint64_t offset, char *data, uint64_t size, const header_map_t& opts)
+{
+	std::string etag;
+
+	prepare("GET", path, opts);
+	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
+	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
+
+	std::string range=int_to_string(offset)+"-"+
+			int_to_string(offset+size-1);
+	curl_easy_setopt(curl_, CURLOPT_RANGE, range.c_str());
+
+	write_data wd(data, size);
+	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &write_data::write_func);
+	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &wd);
+
+	curl_easy_perform(curl_) | die;
+
+	if (!etag.empty() &&
+			strcasecmp(etag.c_str(), ("\""+wd.get_md5()+"\"").c_str()))
+		abort(); //Data corruption. This SHOULD NOT happen!
+
+	return etag;
 }
