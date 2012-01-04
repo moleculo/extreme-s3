@@ -219,6 +219,15 @@ void file_uploader::operator()(agenda_ptr agenda)
 			  << remote_;
 
 	bool do_compress = should_compress(path_, file_sz);
+	//Prepare upload
+	header_map_t hmap;
+	hmap["x-amz-meta-compressed"] = do_compress ? "true" : "false";
+	hmap["Content-Type"] = "application/x-binary";
+	hmap["x-amz-meta-last-modified"] = int_to_string(up_data->mtime_);
+	hmap["x-amz-meta-size"] = int_to_string(up_data->orig_size_);
+	s3_connection up_prep(conn_);
+	up_data->upload_id_=up_prep.initiate_multipart(remote_, hmap);
+
 	if (do_compress)
 	{
 		zipped_callback on_finish=boost::bind(
@@ -267,14 +276,6 @@ void file_uploader::start_upload(agenda_ptr ag,
 
 	content->num_parts_ = number_of_segments;
 	content->etags_.resize(number_of_segments);
-
-	header_map_t hmap;
-	hmap["x-amz-meta-compressed"] = compressed ? "true" : "false";
-	hmap["Content-Type"] = "application/x-binary";
-	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
-	hmap["x-amz-meta-size"] = content->orig_size_;
-	s3_connection up(conn_);
-	content->upload_id_=up.initiate_multipart(remote_, hmap);
 
 	//Now create file pumps
 	size_t num_per_pump = number_of_segments / conn_->max_readers_ + 1;
