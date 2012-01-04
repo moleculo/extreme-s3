@@ -97,6 +97,7 @@ namespace es3 {
 		if (res>=0)
 			return res;
 		throw_libc_err();
+		return res;
 	}
 
 #define TRYIT(expr) try{ expr; } catch(const es3_exception &ex) { \

@@ -18,6 +18,8 @@ es3_exception::es3_exception(const result_code_t &code) : code_(code)
 
 void es3::throw_libc_err()
 {
+	if (errno==0)
+		return; //No error - we might be here accidentally
 	char buf[1024]={0};
 	strerror_r(errno, buf, 1023);
 	err(errFatal) << "Got error: " << std::string(buf);
