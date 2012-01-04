@@ -62,8 +62,42 @@ namespace es3 {
 		void on_complete(const std::string &name, uint64_t num,
 						 uint64_t resulting_size);
 	};
-
 	typedef boost::shared_ptr<file_compressor> compressor_ptr;
+
+	class file_decompressor : public sync_task,
+			public boost::enable_shared_from_this<file_decompressor>
+	{
+		context_ptr context_;
+		const std::string source_;
+		const std::string result_;
+		time_t mtime_;
+		bool delete_on_stop_;
+		uint64_t raw_size_;
+	public:
+		file_decompressor(context_ptr context, const std::string &source,
+						  const std::string &result, time_t mtime,
+						  bool delete_on_stop, uint64_t raw_size)
+			: context_(context), source_(source), result_(result),
+			  delete_on_stop_(delete_on_stop), raw_size_(raw_size)
+		{
+		}
+		~file_decompressor()
+		{
+			if (delete_on_stop_)
+				unlink(source_.c_str());
+		}
+
+		virtual std::string get_class() const
+		{
+			return "decompression"+int_to_string(get_class_limit());
+		}
+		virtual int get_class_limit() const
+		{
+			return context_->max_compressors_;
+		}
+
+		virtual void operator()(agenda_ptr agenda);
+	};
 
 }; //namespace es3
 

@@ -547,9 +547,10 @@ std::string s3_connection::download_data(const std::string &path,
 
 	curl_easy_perform(curl_) | die;
 
-	if (!etag.empty() &&
-			strcasecmp(etag.c_str(), ("\""+wd.get_md5()+"\"").c_str()))
-		abort(); //Data corruption. This SHOULD NOT happen!
+	//TODO: doesn't work with multiparts. Drat.
+//	if (!etag.empty() &&
+//			strcasecmp(etag.c_str(), ("\""+wd.get_md5()+"\"").c_str()))
+//		abort(); //Data corruption. This SHOULD NOT happen!
 
 	return etag;
 }

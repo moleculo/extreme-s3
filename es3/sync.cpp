@@ -131,7 +131,7 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 	}
 
 	if (to_->delete_missing_)
-		process_missing(cur_remote_copy, cur_remote_path);
+		process_missing(cur_remote_copy, cur_local+"/");
 }
 
 void synchronizer::process_missing(const file_map_t &cur,

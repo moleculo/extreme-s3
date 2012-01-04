@@ -14,6 +14,7 @@ es3_exception::es3_exception(const result_code_t &code) : code_(code)
 	s<<("Error code: ")<<code.code()<<", description: '"<<code.desc()<<"'";
 	s.flush();
 	what_=s.str();
+	backtrace_it();
 }
 
 void es3::throw_libc_err()

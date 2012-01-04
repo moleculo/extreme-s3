@@ -45,6 +45,8 @@
 		printf("backtrace() returned %d addresses\n", nptrs);
 		backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
 	}
+#else
+	inline void backtrace_it(void) {}
 #endif
 
 #include <mutex>

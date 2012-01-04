@@ -161,3 +161,59 @@ void file_compressor::on_complete(const std::string &name, uint64_t num,
 		on_finish_(result_);
 	}
 }
+
+void file_decompressor::operator()(agenda_ptr agenda)
+{
+	z_stream stream = {0};
+	inflateInit2(&stream, 15 | 16);
+	ON_BLOCK_EXIT(&inflateEnd, &stream);
+
+	std::vector<char> buf;
+	std::vector<char> buf_out;
+	buf.resize(1024*1024);
+	buf_out.resize(1024*1024*2);
+
+	uint64_t written_so_far=0;
+	handle_t in_fl(open(source_.c_str(), O_RDONLY));
+	handle_t out_fl(open(result_.c_str(), O_WRONLY|O_CREAT, 0644));
+	while(true)
+	{
+		size_t cur_chunk=read(in_fl.get(), &buf[0], buf.size()) | libc_die;
+		if (cur_chunk==0)
+			break;
+
+		stream.avail_in = cur_chunk;
+		stream.next_in = (Bytef*)&buf[0];
+
+		while (stream.avail_in>0)
+		{
+			stream.next_out = (Bytef*)&buf_out[0];
+			stream.avail_out = buf_out.size();
+			int res = inflate(&stream, Z_SYNC_FLUSH);
+			if (res<0)
+				err(errFatal) << "Failed to decompress " << result_;
+
+			size_t to_write = buf_out.size()-stream.avail_out;
+			written_so_far+=to_write;
+			write(out_fl.get(), &buf_out[0], to_write) | libc_die;
+
+			if (written_so_far==raw_size_)
+				break;
+
+			if (res == Z_STREAM_END)
+			{
+				z_stream s2={0};
+				inflateInit2(&s2, 15 | 16);
+				s2.avail_in = stream.avail_in;
+				s2.next_in = stream.next_in;
+				inflateEnd(&stream);
+				stream = s2;
+			}
+		}
+
+		if (written_so_far==raw_size_)
+			break;
+	}
+
+	last_write_time(result_, mtime_) ;
+}

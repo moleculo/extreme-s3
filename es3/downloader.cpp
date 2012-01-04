@@ -1,7 +1,10 @@
 #include "downloader.h"
 #include "workaround.hpp"
+#include "compressor.h"
 #include "context.h"
 #include "errors.h"
+#include <stdio.h>
+#include <fcntl.h>
 
 using namespace es3;
 using namespace boost::filesystem;
@@ -19,15 +22,85 @@ struct download_content
 	context_ptr ctx_;
 
 	time_t mtime_;
-	size_t num_segments_, segment_read_;
+	size_t num_segments_, segments_read_;
 	size_t remote_size_, raw_size_;
 
 	std::string remote_path_,local_file_, target_file_;
+	bool delete_temp_file_;
 
-	download_content() : mtime_(), num_segments_(), segment_read_
-		(), remote_size_(), raw_size_() {}
+	download_content() : mtime_(), num_segments_(), segments_read_(),
+		remote_size_(), raw_size_(), delete_temp_file_(true) {}
+	~download_content()
+	{
+		if (local_file_!=target_file_ && delete_temp_file_)
+			unlink(local_file_.c_str());
+	}
 };
 typedef boost::shared_ptr<download_content> download_content_ptr;
+
+class write_segment_task: public sync_task,
+		public boost::enable_shared_from_this<write_segment_task>
+{
+	download_content_ptr content_;
+	size_t cur_segment_;
+	segment_ptr seg_;
+public:
+	write_segment_task(download_content_ptr content,
+					   size_t cur_segment, segment_ptr seg) :
+		content_(content), cur_segment_(cur_segment), seg_(seg)
+	{
+	}
+
+	virtual std::string get_class() const
+	{
+		return "writer"+int_to_string(get_class_limit());
+	}
+	virtual int get_class_limit() const
+	{
+		return content_->ctx_->max_readers_;
+	}
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		context_ptr ctx = content_->ctx_;
+		do_write();
+
+		guard_t lock(content_->m_);
+		content_->segments_read_++;
+		if (content_->segments_read_==content_->num_segments_)
+		{
+			//Check if we need to decompress the file
+			if (content_->local_file_!=content_->target_file_)
+			{
+				//Yep, we do need to decompress it
+				sync_task_ptr dl(new file_decompressor(ctx,
+					content_->local_file_, content_->target_file_,
+					content_->mtime_, true, content_->raw_size_));
+				content_->delete_temp_file_=false;
+				agenda->schedule(dl);
+			} else
+				last_write_time(content_->target_file_, content_->mtime_) ;
+		}
+	}
+
+	void do_write()
+	{
+		context_ptr ctx = content_->ctx_;
+		uint64_t start_offset = ctx->segment_size_*cur_segment_;
+		handle_t fl(open(content_->local_file_.c_str(), O_RDWR) | libc_die);
+		lseek64(fl.get(), start_offset, SEEK_SET) | libc_die;
+
+		size_t offset = 0;
+		while(offset<seg_->data_.size())
+		{
+			size_t chunk=std::min(seg_->data_.size()-offset, size_t(1024*1024));
+			size_t res=write(fl.get(), &seg_->data_[offset],
+							 chunk) | libc_die;
+			assert(res!=0);
+			offset+=res;
+		}
+	}
+};
 
 class download_segment_task: public sync_task,
 		public boost::enable_shared_from_this<download_segment_task>
@@ -62,6 +135,8 @@ public:
 				<< content_->num_segments_ << " of " << content_->remote_path_;
 
 		//Now write the resulting segment
+		sync_task_ptr dl(new write_segment_task(content_, cur_segment_, seg));
+		agenda->schedule(dl);
 	}
 };
 
@@ -70,8 +145,13 @@ void file_downloader::operator()(agenda_ptr agenda)
 	VLOG(2) << "Checking download of " << path_ << " from "
 			  << remote_;
 
-	uint64_t file_sz=file_size(path_);
-	time_t mtime=last_write_time(path_);
+	uint64_t file_sz=0;
+	time_t mtime=0;
+	try
+	{
+		file_sz=file_size(path_);
+		mtime=last_write_time(path_);
+	} catch(const boost::filesystem3::filesystem_error&) {}
 
 	//Check the modification date of the file locally and on the
 	//remote side
@@ -91,7 +171,7 @@ void file_downloader::operator()(agenda_ptr agenda)
 
 	dc->mtime_=mod.mtime_;
 	dc->num_segments_=seg_num;
-	dc->segment_read_=0;
+	dc->segments_read_=0;
 	dc->remote_size_=mod.remote_size_;
 	dc->raw_size_=mod.raw_size_;
 
@@ -107,6 +187,12 @@ void file_downloader::operator()(agenda_ptr agenda)
 		dc->local_file_=tmp_nm.c_str();
 	} else
 		dc->local_file_=path_;
+
+	{
+		handle_t fl(open(dc->local_file_.c_str(),
+						 O_RDWR|O_CREAT, 0640) | libc_die);
+		fallocate64(fl.get(), 0, 0, dc->remote_size_);
+	}
 
 	for(size_t f=0;f<seg_num;++f)
 	{
