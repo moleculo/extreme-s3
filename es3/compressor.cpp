@@ -53,47 +53,51 @@ namespace es3
 							   Z_DEFAULT_STRATEGY);
 			ON_BLOCK_EXIT(&deflateEnd, &stream);
 
-			char buf[65536*4];
-			char buf_out[65536];
+			std::vector<char> buf;
+			std::vector<char> buf_out;
+			buf.resize(1024*1024*2);
+			buf_out.resize(1024*1024);
+
 			size_t consumed=0;
 			size_t raw_consumed=0;
 			while(raw_consumed<size_)
 			{
-				size_t chunk = std::min(uint64_t(sizeof(buf)),
+				size_t chunk = std::min(uint64_t(buf.size()),
 										size_-raw_consumed);
-				ssize_t ln=read(src.get(), buf, chunk) | libc_die;
+				ssize_t ln=read(src.get(), &buf[0], chunk) | libc_die;
 				assert(ln>0);
 				raw_consumed+=ln;
 
 				stream.avail_in = ln;
-				stream.next_in = (Bytef*)buf;
+				stream.next_in = (Bytef*)&buf[0];
 
 				do
 				{
-					stream.avail_out= sizeof(buf_out);
-					stream.next_out = (Bytef*)buf_out;
+					stream.avail_out= buf_out.size();
+					stream.next_out = (Bytef*)&buf_out[0];
 					int c_err=deflate(&stream, Z_NO_FLUSH);
 					if (c_err!=Z_OK)
 						err(errFatal) << "Failed to compress "
 									  << parent_->path_;
 
-					size_t cur_consumed=sizeof(buf_out) - stream.avail_out;
-					write(tmp_desc.get(), buf_out, cur_consumed) | libc_die;
+					size_t cur_consumed=buf_out.size() - stream.avail_out;
+					write(tmp_desc.get(), &buf_out[0], cur_consumed) | libc_die;
 					consumed += cur_consumed;
 				} while(stream.avail_in!=0);
 			}
 			assert(raw_consumed==size_);
 
 			//We're writing the epilogue
-			stream.avail_out= sizeof(buf_out);
-			stream.next_out = (Bytef*)buf_out;
+			stream.avail_out= buf_out.size();
+			stream.next_out = (Bytef*)&buf_out[0];
 			int c_err=deflate(&stream, Z_FINISH);
 			if (c_err!=Z_STREAM_END) //Epilogue must always fit
 				err(errFatal) << "Failed to finish compression of "
 							  << parent_->path_;
-			size_t cur_consumed=sizeof(buf_out) - stream.avail_out;
+			size_t cur_consumed=buf_out.size() - stream.avail_out;
 			consumed += cur_consumed;
-			write(tmp_desc.get(), buf_out, cur_consumed) | libc_die;
+			if (cur_consumed!=0)
+				write(tmp_desc.get(), &buf_out[0], cur_consumed) | libc_die;
 
 			return std::pair<std::string,uint64_t>(tmp_nm.c_str(), consumed);
 		}
