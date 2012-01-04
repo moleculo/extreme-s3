@@ -33,11 +33,6 @@ namespace es3
 				{
 					if (agenda_->num_working_==0)
 						return sync_task_ptr();
-					else
-					{
-						agenda_->condition_.wait(lock);
-						continue;
-					}
 				}
 
 				for(auto iter=agenda_->tasks_.begin();
@@ -55,6 +50,8 @@ namespace es3
 					agenda_->classes_[cur_task->get_class()]++;
 					return cur_task;
 				}
+
+				agenda_->condition_.wait(lock);
 			}
 		}
 
