@@ -1,6 +1,7 @@
 #include "downloader.h"
 #include "workaround.hpp"
 #include "context.h"
+#include "errors.h"
 
 using namespace es3;
 using namespace boost::filesystem;
@@ -12,8 +13,104 @@ void local_file_deleter::operator ()(agenda_ptr agenda_)
 	remove_all(p);
 }
 
+struct download_content
+{
+	std::mutex m_;
+	context_ptr ctx_;
+
+	time_t mtime_;
+	size_t num_segments_, segment_read_;
+	size_t remote_size_, raw_size_;
+
+	std::string remote_path_,local_file_, target_file_;
+
+	download_content() : mtime_(), num_segments_(), segment_read_
+		(), remote_size_(), raw_size_() {}
+};
+typedef boost::shared_ptr<download_content> download_content_ptr;
+
+class download_segment_task: public sync_task,
+		public boost::enable_shared_from_this<download_segment_task>
+{
+	download_content_ptr content_;
+	size_t cur_segment_;
+public:
+	download_segment_task(download_content_ptr content, size_t cur_segment) :
+		content_(content), cur_segment_(cur_segment)
+	{
+	}
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		context_ptr ctx = content_->ctx_;
+		segment_ptr seg=ctx->get_segment();
+
+		uint64_t start_offset = ctx->segment_size_*cur_segment_;
+		uint64_t size = content_->raw_size_-start_offset;
+		if (size>ctx->segment_size_)
+			size=ctx->segment_size_;
+
+		VLOG(2) << "Downloading part " << cur_segment_ << " out of "
+				<< content_->num_segments_ << " of " << content_->remote_path_;
+
+		s3_connection conn(ctx);
+		seg->data_.resize(size);
+		conn.download_data(content_->remote_path_, start_offset,
+						   &seg->data_[0], size);
+
+		VLOG(2) << "Finished downloading part " << cur_segment_ << " out of "
+				<< content_->num_segments_ << " of " << content_->remote_path_;
+
+		//Now write the resulting segment
+	}
+};
+
 void file_downloader::operator()(agenda_ptr agenda)
 {
 	VLOG(2) << "Checking download of " << path_ << " from "
 			  << remote_;
+
+	uint64_t file_sz=file_size(path_);
+	time_t mtime=last_write_time(path_);
+
+	//Check the modification date of the file locally and on the
+	//remote side
+	s3_connection up(conn_);
+	file_desc mod=up.find_mtime_and_size(remote_);
+	if (mod.mtime_==mtime && mod.raw_size_==file_sz)
+		return; //TODO: add an optional MD5 check?
+
+	//We need to download the file
+	download_content_ptr dc(new download_content());
+	dc->ctx_=conn_;
+
+	size_t seg_num = mod.remote_size_/conn_->segment_size_ +
+			((mod.remote_size_%conn_->segment_size_)==0?0:1);
+	if (seg_num>MAX_SEGMENTS)
+		err(errFatal) << "Segment size is too small for " << remote_;
+
+	dc->mtime_=mod.mtime_;
+	dc->num_segments_=seg_num;
+	dc->segment_read_=0;
+	dc->remote_size_=mod.remote_size_;
+	dc->raw_size_=mod.raw_size_;
+
+	dc->remote_path_=remote_;
+	dc->target_file_=path_;
+
+	VLOG(2) << "Downloading " << path_ << " from " << remote_;
+
+	if (mod.compressed)
+	{
+		path tmp_nm = path(conn_->scratch_path_) /
+				unique_path("scratchy-%%%%-%%%%-%%%%-%%%%-dl");
+		dc->local_file_=tmp_nm.c_str();
+	} else
+		dc->local_file_=path_;
+
+	for(size_t f=0;f<seg_num;++f)
+	{
+		sync_task_ptr dl(new download_segment_task(dc, f));
+		agenda->schedule(dl);
+	}
 }

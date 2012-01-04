@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include <boost/weak_ptr.hpp>
+#include <tuple>
 
 typedef void CURL;
 struct curl_slist;
@@ -28,6 +29,13 @@ namespace es3 {
 		bool is_dir_;
 		file_map_t children_;
 		remote_file_weak_t parent_;
+	};
+
+	struct file_desc
+	{
+		time_t mtime_;
+		uint64_t raw_size_, remote_size_;
+		bool compressed;
 	};
 
 	class s3_connection
@@ -61,8 +69,7 @@ namespace es3 {
 									   const header_map_t &opts);
 		std::string complete_multipart(const std::string &path,
 			const std::vector<std::string> &etags);
-		std::pair<time_t, uint64_t> find_mtime_and_size(
-			const std::string &path);
+		file_desc find_mtime_and_size(const std::string &path);
 
 	private:
 		void prepare(const std::string &verb,

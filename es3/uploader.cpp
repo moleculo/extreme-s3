@@ -21,11 +21,10 @@ using namespace boost::filesystem;
 struct es3::upload_content
 {
 	upload_content() : num_parts_(), num_completed_() {}
+
 	context_ptr conn_;
 	std::string upload_id_;
 	std::string remote_;
-	uint64_t orig_size_;
-	time_t mtime_;
 
 	std::mutex lock_;
 	size_t num_parts_;
@@ -201,16 +200,14 @@ void file_uploader::operator()(agenda_ptr agenda)
 	//Check the modification date of the file locally and on the
 	//remote side
 	s3_connection up(conn_);
-	std::pair<time_t, uint64_t> mod=up.find_mtime_and_size(remote_);
-	if (mod.first==mtime && mod.second==file_sz)
+	file_desc mod=up.find_mtime_and_size(remote_);
+	if (mod.mtime_==mtime && mod.raw_size_==file_sz)
 		return; //TODO: add an optional MD5 check?
 
 	//Woohoo! We need to upload the file.
 	upload_content_ptr up_data(new upload_content());
 	up_data->conn_ = conn_;
-	up_data->mtime_ = mtime;
 	up_data->remote_ = remote_;
-	up_data->orig_size_=file_sz;
 
 	VLOG(2) << "Starting upload of " << path_ << " as "
 			  << remote_;
@@ -220,8 +217,8 @@ void file_uploader::operator()(agenda_ptr agenda)
 	header_map_t hmap;
 	hmap["x-amz-meta-compressed"] = do_compress ? "true" : "false";
 	hmap["Content-Type"] = "application/x-binary";
-	hmap["x-amz-meta-last-modified"] = int_to_string(up_data->mtime_);
-	hmap["x-amz-meta-size"] = int_to_string(up_data->orig_size_);
+	hmap["x-amz-meta-last-modified"] = int_to_string(mtime);
+	hmap["x-amz-meta-size"] = int_to_string(file_sz);
 	s3_connection up_prep(conn_);
 	up_data->upload_id_=up_prep.initiate_multipart(remote_, hmap);
 
@@ -240,22 +237,6 @@ void file_uploader::operator()(agenda_ptr agenda)
 		start_upload(agenda, up_data, files, false);
 	}
 }
-
-//void file_uploader::simple_upload(agenda_ptr ag, upload_content_ptr content)
-//{
-//	//Simple upload
-//	header_map_t hmap;
-//	hmap["x-amz-meta-compressed"] = "false";
-//	hmap["Content-Type"] = "application/x-binary";
-//	hmap["x-amz-meta-last-modified"] = int_to_string(content->mtime_);
-//	s3_connection up(conn_);
-
-////	handle_t file(open(path_.c_str(), O_RDONLY));
-////	int64_t sz=lseek64(file.get(), 0, SEEK_END);
-////	hmap["x-amz-meta-size"] = int_to_string(sz);
-////	std::string etag=up.upload_data(remote_,
-////									file, sz, 0, hmap);
-//}
 
 void file_uploader::start_upload(agenda_ptr ag,
 								 upload_content_ptr content,

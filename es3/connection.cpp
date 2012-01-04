@@ -60,6 +60,8 @@ void s3_connection::prepare(const std::string &verb,
 	if (cur_path.empty())
 		cur_path.append("/");
 
+	curl_easy_reset(curl_);
+
 	//Set HTTP verb
 	curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, verb.c_str()) | die;
 
@@ -317,21 +319,24 @@ static std::string find_header(void *ptr, size_t size, size_t nmemb,
 
 static size_t find_mtime(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
-	std::pair<time_t, uint64_t> *pair=
-			reinterpret_cast<std::pair<time_t,uint64_t>*>(userdata);
+	file_desc *info=reinterpret_cast<file_desc*>(userdata);
 
 	std::string mtime=find_header(ptr, size, nmemb,
 								  "x-amz-meta-last-modified");
 	if (!mtime.empty())
-	{
-		int64_t tm2 = atoll(mtime.c_str());
-		if (tm2 < pair->first)
-			pair->first=tm2;
-	}
+		info->mtime_=atoll(mtime.c_str());
 
 	std::string ln=find_header(ptr, size, nmemb, "x-amz-meta-size");
 	if (!ln.empty())
-		pair->second = atoll(ln.c_str());
+		info->raw_size_ = atoll(ln.c_str());
+
+	std::string ln2=find_header(ptr, size, nmemb, "content-length");
+	if (!ln2.empty())
+		info->remote_size_ = atoll(ln2.c_str());
+
+	std::string cmpr=find_header(ptr, size, nmemb, "x-amz-meta-compressed");
+	if (cmpr=="true")
+		info->compressed=true;
 
 	return size*nmemb;
 }
@@ -344,10 +349,12 @@ static size_t find_etag(void *ptr, size_t size, size_t nmemb, void *userdata)
 	return size*nmemb;
 }
 
-std::pair<time_t, uint64_t> s3_connection::find_mtime_and_size(
-	const std::string &path)
+file_desc s3_connection::find_mtime_and_size(const std::string &path)
 {
-	std::pair<time_t, uint64_t> result={time(NULL), 0};
+	file_desc result;
+	result.compressed=false;
+	result.remote_size_=result.raw_size_=0;
+
 	prepare("HEAD", path);
 	//last-modified
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &::find_mtime);
