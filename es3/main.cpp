@@ -93,6 +93,7 @@ int main(int argc, char **argv)
 				  << " is not present." << std::endl;
 		return 1;
 	}
+	cd->validate();
 
 	logger::set_verbosity(verbosity);
 
