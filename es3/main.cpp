@@ -111,7 +111,7 @@ int main(int argc, char **argv)
 		s3_connection conn(cd);
 		std::string region=conn.find_region();
 		if (!region.empty())
-			cd->zone_=region;
+			cd->zone_="s3-"+region;
 	}
 
 	if (thread_num==0)
