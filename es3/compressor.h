@@ -57,15 +57,6 @@ namespace es3 {
 			: path_(path), context_(context), on_finish_(on_finish)
 		{
 		}
-
-		virtual std::string get_class() const
-		{
-			return "compression"+int_to_string(context_->max_compressors_);
-		}
-		virtual int get_class_limit() const
-		{
-			return context_->max_compressors_;
-		}
 		virtual void operator()(agenda_ptr agenda);
 	private:
 		void on_complete(const std::string &name, uint64_t num,

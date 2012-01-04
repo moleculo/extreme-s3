@@ -18,6 +18,15 @@ namespace es3
 		compressor_ptr parent_;
 		uint64_t block_num_, offset_, size_, block_total_;
 
+		virtual std::string get_class() const
+		{
+			return "compression"+int_to_string(get_class_limit());
+		}
+		virtual int get_class_limit() const
+		{
+			return parent_->context_->max_compressors_;
+		}
+
 		virtual void operator()(agenda_ptr agenda)
 		{
 			std::pair<std::string,uint64_t> res=do_compress();
