@@ -6,6 +6,8 @@
 #include <boost/filesystem.hpp>
 #include <iostream>
 #include "workaround.hpp"
+#include <sys/stat.h>
+#include <sys/types.h>
 
 using namespace es3;
 using namespace boost::filesystem;
@@ -140,9 +142,11 @@ void synchronizer::process_missing(const file_map_t &cur,
 	for(auto f = cur.begin(); f!=cur.end();++f)
 	{
 		if (f->second->is_dir_)
+		{
+			mkdir((cur_local_path+f->first).c_str(), 0644);
 			process_missing(f->second->children_,
 							cur_local_path+f->first+"/");
-		else
+		} else
 		{
 			if (to_->upload_)
 			{
