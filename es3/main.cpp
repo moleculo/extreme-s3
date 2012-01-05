@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 			 &cd->delete_missing_)->default_value(false),
 			"Delete missing files from the remote side")
 
-		("sync-dir,i", po::value<std::string>(
+		("sync-dir,i", po::value<bf::path>(
 			 &cd->local_root_)->required(),
 			"Local directory")
 		("zone-name,z", po::value<std::string>(

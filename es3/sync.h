@@ -12,7 +12,6 @@ namespace es3 {
 	{
 		agenda_ptr agenda_;
 		context_ptr to_;
-		std::string cur_remote_;
 	public:
 		synchronizer(agenda_ptr agenda, const context_ptr &to);
 		void create_schedule();

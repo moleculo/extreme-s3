@@ -4,8 +4,11 @@
 #include "common.h"
 #include "agenda.h"
 #include <functional>
+#include <boost/filesystem.hpp>
 
 namespace es3 {
+	namespace bf = boost::filesystem3;
+
 	class conn_context;
 	typedef boost::shared_ptr<conn_context> context_ptr;
 
@@ -93,6 +96,7 @@ namespace es3 {
 		virtual void operator()(agenda_ptr agenda);
 	};
 
+	bool should_compress(const bf::path &p, uint64_t sz);
 }; //namespace es3
 
 #endif //COMPRESSOR_H

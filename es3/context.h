@@ -4,15 +4,16 @@
 #include "common.h"
 #include <condition_variable>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/filesystem.hpp>
 
 #define MAX_SEGMENTS 9999
 
 namespace es3 {
+	namespace bf = boost::filesystem3;
 
 	struct segment
 	{
 		std::vector<char> data_;
-		uint64_t pos_;
 	};
 	typedef boost::shared_ptr<segment> segment_ptr;
 
@@ -23,7 +24,8 @@ namespace es3 {
 		std::string zone_;
 		std::string bucket_;
 		std::string api_key_, secret_key;
-		std::string local_root_, remote_root_;
+		bf::path local_root_;
+		std::string remote_root_;
 		std::string scratch_path_;
 		bool upload_;
 		bool delete_missing_;
@@ -46,8 +48,6 @@ namespace es3 {
 		friend struct segment_deleter;
 	};
 	typedef boost::shared_ptr<conn_context> context_ptr;
-
-	bool should_compress(const std::string &p, uint64_t sz);
 }; //namespace es3
 
 #endif //CONTEXT_H

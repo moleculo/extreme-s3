@@ -96,6 +96,15 @@ namespace es3 {
 		if (pos==map.end()) return def;
 		return pos->second;
 	}
+
+	template<class to, class from> inline to safe_cast(from f)
+	{
+		to t = static_cast<to>(f);
+		if ( t != f )
+			throw std::out_of_range("unsafe cast failed");
+		return t;
+	}
+
 };
 
 #endif // COMMON_H

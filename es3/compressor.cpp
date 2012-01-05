@@ -13,6 +13,7 @@ using namespace es3;
 using namespace boost::filesystem;
 
 #define MINIMAL_BLOCK (1024*1024)
+#define COMPRESSION_THRESHOLD 10000000
 
 namespace es3
 {
@@ -221,4 +222,26 @@ std::string file_decompressor::get_class() const
 size_t file_decompressor::get_class_limit() const
 {
 	return context_->max_compressors_;
+}
+
+bool es3::should_compress(const bf::path &p, uint64_t sz)
+{
+	std::string ext=p.extension().c_str();
+	if (ext==".gz" || ext==".zip" ||
+			ext==".tgz" || ext==".bz2" || ext==".7z")
+		return false;
+
+	if (sz <= COMPRESSION_THRESHOLD)
+		return false;
+
+	//Check for GZIP magic
+	int fl=open(bf::absolute(p).c_str(), O_RDONLY)
+			| libc_die2("Can't open file "+p.string());
+	ON_BLOCK_EXIT(&close, fl);
+
+	char magic[4]={0};
+	read(fl, magic, 4) | libc_die2("Can't read "+p.string());
+	if (magic[0]==0x1F && magic[1] == 0x8B && magic[2]==0x8 && magic[3]==0x8)
+		return false;
+	return true;
 }

@@ -22,7 +22,7 @@ void synchronizer::create_schedule()
 	//Retrieve the list of remote files
 	s3_connection conn(to_);
 	file_map_t remotes = conn.list_files(to_->remote_root_, "");
-	process_dir(&remotes, to_->local_root_, to_->remote_root_);
+	process_dir(&remotes, to_->local_root_.string(), to_->remote_root_);
 }
 
 void synchronizer::process_dir(file_map_t *cur_remote,
