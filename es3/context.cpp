@@ -1,8 +1,4 @@
 #include "context.h"
-#include <unistd.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <boost/filesystem.hpp>
 #include "scope_guard.h"
 #include "errors.h"
 
