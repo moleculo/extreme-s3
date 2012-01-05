@@ -32,20 +32,26 @@ namespace es3
 
 		virtual void operator()(agenda_ptr agenda)
 		{
-			std::pair<std::string,uint64_t> res=do_compress();
+			std::pair<bf::path,uint64_t> res=do_compress();
 			parent_->on_complete(res.first, block_num_, res.second);
 		}
 
-		std::pair<std::string,uint64_t> do_compress()
+		std::pair<bf::path,uint64_t> do_compress()
 		{
-			handle_t src(open(parent_->path_.c_str(), O_RDONLY));
-			lseek64(src.get(), offset_, SEEK_SET) | libc_die;
+			handle_t src(open(parent_->path_.c_str(), O_RDONLY)
+						 | libc_die2("Failed to open "
+									 +parent_->path_.string()
+									 +" for compression"));
+			lseek64(src.get(), offset_, SEEK_SET)
+					| libc_die2("Incorrect offset "+int_to_string(offset_)
+								+" in "+parent_->path_.string());
 
 			//Generate the temp name
 			bf::path tmp_nm = bf::path(parent_->context_->scratch_path_) /
 					bf::unique_path("scratchy-%%%%-%%%%-%%%%-%%%%");
 			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT,
-								   S_IRUSR|S_IWUSR));
+								   S_IRUSR|S_IWUSR)
+							  | libc_die2("Failed to create "+tmp_nm.string()));
 
 			VLOG(2) << "Compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;
@@ -106,7 +112,7 @@ namespace es3
 			VLOG(2) << "Done compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;
 
-			return std::pair<std::string,uint64_t>(tmp_nm.c_str(), consumed);
+			return std::pair<bf::path,uint64_t>(tmp_nm, consumed);
 		}
 	};
 }; //namespace es3
