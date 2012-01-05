@@ -115,12 +115,7 @@ namespace es3
 void file_compressor::operator()(agenda_ptr agenda)
 {
 	uint64_t file_sz=file_size(path_);
-	if (file_sz<=MINIMAL_BLOCK)
-	{
-		handle_t desc(open(path_.c_str(), O_RDONLY));
-		on_finish_(zip_result_ptr(new compressed_result(path_, desc.size())));
-		return;
-	}
+	assert(file_sz>MINIMAL_BLOCK);
 
 	//Start compressing
 	uint64_t estimate_num_blocks = file_sz / MINIMAL_BLOCK;
@@ -155,15 +150,13 @@ void file_compressor::on_complete(const std::string &name, uint64_t num,
 {
 	{
 		guard_t lock(m_);
-
+		assert(num_pending_!=0);
 		num_pending_--;
 		result_->files_.at(num) = name;
 		result_->sizes_.at(num) = resulting_size;
 	}
 	if (num_pending_==0)
-	{
 		on_finish_(result_);
-	}
 }
 
 void file_decompressor::operator()(agenda_ptr agenda)
