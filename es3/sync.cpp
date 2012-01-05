@@ -140,7 +140,8 @@ void synchronizer::process_missing(const file_map_t &cur,
 		if (file->is_dir_)
 		{
 			bf::path new_dir = cur_local_dir / filename;
-			mkdir(new_dir.c_str(), 0755) |
+			if (!to_->upload_)
+				mkdir(new_dir.c_str(), 0755) |
 					libc_die2("Failed to create "+new_dir.string());
 			process_missing(file->children_, new_dir);
 		} else

@@ -10,7 +10,6 @@
 #include "errors.h"
 
 using namespace es3;
-using namespace boost::filesystem;
 
 #define MINIMAL_BLOCK (1024*1024)
 #define COMPRESSION_THRESHOLD 10000000
@@ -43,8 +42,8 @@ namespace es3
 			lseek64(src.get(), offset_, SEEK_SET) | libc_die;
 
 			//Generate the temp name
-			path tmp_nm = path(parent_->context_->scratch_path_) /
-					unique_path("scratchy-%%%%-%%%%-%%%%-%%%%");
+			bf::path tmp_nm = bf::path(parent_->context_->scratch_path_) /
+					bf::unique_path("scratchy-%%%%-%%%%-%%%%-%%%%");
 			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT,
 								   S_IRUSR|S_IWUSR));
 
@@ -114,7 +113,7 @@ namespace es3
 
 void file_compressor::operator()(agenda_ptr agenda)
 {
-	uint64_t file_sz=file_size(path_);
+	uint64_t file_sz=bf::file_size(path_);
 	assert(file_sz>MINIMAL_BLOCK);
 
 	//Start compressing
@@ -125,8 +124,7 @@ void file_compressor::operator()(agenda_ptr agenda)
 		estimate_num_blocks = context_->max_compressors_;
 	uint64_t block_sz = file_sz / estimate_num_blocks;
 	assert(block_sz>0);
-	uint64_t num_blocks = file_sz / block_sz +
-			((file_sz%block_sz)==0?0:1);
+	uint64_t num_blocks = file_sz / block_sz + ((file_sz%block_sz)==0?0:1);
 
 	result_=files_ptr(new scattered_files(num_blocks));
 	num_pending_ = num_blocks;
@@ -145,7 +143,7 @@ void file_compressor::operator()(agenda_ptr agenda)
 	}
 }
 
-void file_compressor::on_complete(const std::string &name, uint64_t num,
+void file_compressor::on_complete(const bf::path &name, uint64_t num,
 				 uint64_t resulting_size)
 {
 	{
@@ -176,8 +174,8 @@ void file_decompressor::operator()(agenda_ptr agenda)
 							 ", can't open temporary file"));
 
 	//Create the temporary output file
-	path temp_name_template=result_.string()+"-%%%%%%%%%";
-	path temp_out_name=bf::unique_path(temp_name_template);
+	bf::path temp_name_template=result_.string()+"-%%%%%%%%%";
+	bf::path temp_out_name=bf::unique_path(temp_name_template);
 	ON_BLOCK_EXIT(&unlink, temp_out_name.c_str());
 
 	handle_t out_fl(open(temp_out_name.c_str(), O_WRONLY|O_CREAT, 0600) |

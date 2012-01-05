@@ -14,7 +14,7 @@ namespace es3 {
 
 	struct scattered_files
 	{
-		std::vector<std::string> files_;
+		std::vector<bf::path> files_;
 		std::vector<uint64_t> sizes_;
 		bool was_compressed_;
 
@@ -25,7 +25,7 @@ namespace es3 {
 			was_compressed_ = true;
 		}
 
-		scattered_files(const std::string &file, uint64_t sz)
+		scattered_files(const bf::path &file, uint64_t sz)
 		{
 			files_.push_back(file);
 			sizes_.push_back(sz);
@@ -47,7 +47,7 @@ namespace es3 {
 		std::mutex m_;
 
 		context_ptr context_;
-		const std::string path_;
+		const bf::path path_;
 		files_finished_callback on_finish_;
 
 		files_ptr result_;
@@ -55,7 +55,7 @@ namespace es3 {
 
 		friend struct compress_task;
 	public:
-		file_compressor(const std::string &path,
+		file_compressor(const bf::path &path,
 						context_ptr context,
 						files_finished_callback on_finish)
 			: path_(path), context_(context), on_finish_(on_finish)
@@ -63,7 +63,7 @@ namespace es3 {
 		}
 		virtual void operator()(agenda_ptr agenda);
 	private:
-		void on_complete(const std::string &name, uint64_t num,
+		void on_complete(const bf::path &name, uint64_t num,
 						 uint64_t resulting_size);
 	};
 	typedef boost::shared_ptr<file_compressor> compressor_ptr;
