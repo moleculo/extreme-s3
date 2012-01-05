@@ -25,7 +25,7 @@ int main(int argc, char **argv)
 		("help", "Display this message")
 		("config,c", po::value<std::string>(),
 			"Path to a file that contains configuration settings")
-		("verbosity,v", po::value<int>(&verbosity)->default_value(0),
+		("verbosity,v", po::value<int>(&verbosity)->default_value(1),
 			"Verbosity level [0 - the lowest, 9 - the highest]")
 		("quiet,q", "Quiet mode (no progress indicator)")
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),

@@ -154,6 +154,9 @@ public:
 
 void file_downloader::operator()(agenda_ptr agenda)
 {
+	if (delete_dir_)
+		bf::remove_all(path_);
+
 	VLOG(2) << "Checking download of " << path_ << " from "
 			  << remote_;
 
@@ -207,8 +210,9 @@ void file_downloader::operator()(agenda_ptr agenda)
 
 	{
 		unlink(dc->local_file_.c_str()); //Prevent some access right foulups
-		handle_t fl(open(dc->local_file_.c_str(),
-						 O_RDWR|O_CREAT, 0600) | libc_die);
+		handle_t fl(open(dc->local_file_.c_str(), O_RDWR|O_CREAT, 0600)
+					| libc_die2("Failed to create temporary file "
+							   +dc->local_file_.string()));
 		fallocate64(fl.get(), 0, 0, dc->remote_size_);
 	}
 

@@ -121,7 +121,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 			}
 		} else
 		{
-			VLOG(0) << "Unknown local file type "<< cur_local_path.string();
+			VLOG(1) << "Unknown local file type "<< cur_local_path.string();
 		}
 	}
 

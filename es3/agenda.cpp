@@ -95,12 +95,12 @@ namespace es3
 						const result_code_t &code = ex.err();
 						if (code.code()==errNone)
 						{
-							VLOG(1) << "INFO: " << ex.what();
+							VLOG(2) << "INFO: " << ex.what();
 							sleep(5);
 							continue;
 						} else if (code.code()==errWarn)
 						{
-							VLOG(0) << "WARN: " << ex.what();
+							VLOG(1) << "WARN: " << ex.what();
 							sleep(5);
 							continue;
 						} else
