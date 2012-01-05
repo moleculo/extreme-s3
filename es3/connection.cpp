@@ -41,6 +41,32 @@ s3_connection::s3_connection(const context_ptr &conn_data)
 		err(errFatal) << "can't init CURL";
 }
 
+void s3_connection::check_for_errors(const std::string &curl_res,
+									 code_e err_code)
+{
+	if (curl_res.empty())
+		return;
+	TiXmlDocument doc;
+	doc.Parse(curl_res.c_str());
+	check(doc);
+	TiXmlHandle docHandle(&doc);
+	TiXmlNode *s3_err_code=docHandle.FirstChild("Error")
+				.FirstChild("Code")
+				.FirstChild()
+				.ToText();
+	if (!s3_err_code)
+		return;
+
+	TiXmlNode *message=docHandle.FirstChild("Error")
+				.FirstChild("Message")
+				.FirstChild()
+				.ToText();
+	if (!message)
+		return;
+
+	err(err_code) << s3_err_code->Value() << " - " << message->Value();
+}
+
 static int sockopt_callback(void *clientp,
 		curl_socket_t sock, curlsocktype purpose)
 {
@@ -82,11 +108,7 @@ void s3_connection::prepare(const std::string &verb,
 	curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_) | die;
 	curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 16384*16);
 
-//	curl_easy_setopt(curl_, CURLOPT_TCP_NODELAY, 1);
 	curl_easy_setopt(curl_, CURLOPT_SOCKOPTFUNCTION, &sockopt_callback);
-//	curl_easy_setopt(curl_, CURLOPT_TIMEOUT, 5);
-//	curl_easy_setopt(curl_, CURLOPT_LOW_SPEED_TIME, 2);
-//	curl_easy_setopt(curl_, CURLOPT_LOW_SPEED_LIMIT, 200000);
 
 	curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1);
 	set_url(cur_path, "");
@@ -184,7 +206,7 @@ std::string s3_connection::read_fully(const std::string &verb,
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &res);
 	curl_easy_perform(curl_) | die;
-	//TODO: check error code
+	check_for_errors(res);
 	return res;
 }
 
@@ -422,7 +444,6 @@ std::string s3_connection::upload_data(const std::string &path,
 	prepare("PUT", path, opts);
 	curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag);
 	curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag);
-//	curl_easy_setopt(curl_, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);
 	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
 	curl_easy_setopt(curl_, CURLOPT_READFUNCTION, &buf_data::read_func);
@@ -433,8 +454,7 @@ std::string s3_connection::upload_data(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result);
 
 	curl_easy_perform(curl_) | die;
-	if (result.find("<Error>")!=std::string::npos)
-		err(errWarn) << "Upload failed, retrying. " << result;
+	check_for_errors(result, errWarn);
 
 	if (!etag.empty() &&
 			strcasecmp(etag.c_str(), ("\""+read_data.get_md5()+"\"").c_str()))
@@ -448,6 +468,8 @@ std::string s3_connection::initiate_multipart(
 {
 	set_url(path, "");
 	std::string list=read_fully("POST", path+"?uploads", opts);
+	check_for_errors(list);
+
 	TiXmlDocument doc;
 	doc.Parse(list.c_str()); check(doc);
 	TiXmlHandle docHandle(&doc);
@@ -491,8 +513,9 @@ std::string s3_connection::complete_multipart(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &read_data);
 
 	curl_easy_perform(curl_) | die;
+	check_for_errors(read_data);
 
-	VLOG(2) << "Complete multipart " << read_data;
+	VLOG(2) << "Completed multipart of " << path;
 	return read_data;
 }
 
@@ -566,9 +589,11 @@ std::string s3_connection::download_data(const std::string &path,
 
 std::string s3_connection::find_region()
 {
-	std::string list=read_fully("GET", "/?location", header_map_t());
+	std::string reg_data=read_fully("GET", "/?location");
+	check_for_errors(reg_data);
+
 	TiXmlDocument doc;
-	doc.Parse(list.c_str()); check(doc);
+	doc.Parse(reg_data.c_str()); check(doc);
 	TiXmlHandle docHandle(&doc);
 
 	TiXmlNode *n1=docHandle.FirstChild("LocationConstraint").ToNode();
