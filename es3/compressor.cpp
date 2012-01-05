@@ -1,10 +1,13 @@
 #include "compressor.h"
+#include "agenda.h"
+#include "context.h"
+
 #include <zlib.h>
+#include <stdio.h>
+#include <fcntl.h>
 #include "scope_guard.h"
 #include "workaround.hpp"
 #include "errors.h"
-#include <stdio.h>
-#include <fcntl.h>
 
 using namespace es3;
 using namespace boost::filesystem;
@@ -208,4 +211,14 @@ void file_decompressor::operator()(agenda_ptr agenda)
 	}
 
 	last_write_time(result_, mtime_) ;
+}
+
+std::string file_decompressor::get_class() const
+{
+	return "decompression"+int_to_string(get_class_limit());
+}
+
+int file_decompressor::get_class_limit() const
+{
+	return context_->max_compressors_;
 }

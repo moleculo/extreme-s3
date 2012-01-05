@@ -3,10 +3,11 @@
 
 #include "common.h"
 #include "agenda.h"
-#include "context.h"
 #include <functional>
 
 namespace es3 {
+	class conn_context;
+	typedef boost::shared_ptr<conn_context> context_ptr;
 
 	struct compressed_result
 	{
@@ -87,15 +88,8 @@ namespace es3 {
 				unlink(source_.c_str());
 		}
 
-		virtual std::string get_class() const
-		{
-			return "decompression"+int_to_string(get_class_limit());
-		}
-		virtual int get_class_limit() const
-		{
-			return context_->max_compressors_;
-		}
-
+		virtual std::string get_class() const;
+		virtual int get_class_limit() const;
 		virtual void operator()(agenda_ptr agenda);
 	};
 
