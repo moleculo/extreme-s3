@@ -78,7 +78,7 @@ namespace es3 {
 						  const std::string &result, time_t mtime, mode_t mode,
 						  bool delete_on_stop)
 			: context_(context), source_(source), result_(result),
-			  delete_on_stop_(delete_on_stop), mode_(mode)
+			  delete_on_stop_(delete_on_stop), mtime_(mtime), mode_(mode)
 		{
 		}
 		~file_decompressor()

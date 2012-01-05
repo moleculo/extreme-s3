@@ -27,8 +27,7 @@ int main(int argc, char **argv)
 			"Path to a file that contains configuration settings")
 		("verbosity,v", po::value<int>(&verbosity)->default_value(0),
 			"Verbosity level [0 - the lowest, 9 - the highest]")
-		("quiet,q", po::value<bool>(&quiet)->default_value(false),
-			"Quiet mode (no progress indicator)")
+		("quiet,q", "Quiet mode (no progress indicator)")
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
 			"Number of threads used [0 - autodetect]")
 		("scratch-dir,r", po::value<std::string>(
@@ -95,6 +94,8 @@ int main(int argc, char **argv)
 			std::string config_file = vm["config"].as<std::string>();
 			po::store(po::parse_config_file<char>(config_file.c_str(),desc), vm);
 		}
+
+		quiet = vm.count("quiet");
 	} catch(const boost::program_options::error &err)
 	{
 		std::cerr << "Failed to parse configuration options. Error "
