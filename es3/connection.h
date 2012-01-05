@@ -39,6 +39,7 @@ namespace es3 {
 	class s3_connection
 	{
 		CURL *curl_;
+		char error_buffer_[256+1]; //CURL_ERROR_SIZE+1
 		const context_ptr conn_data_;
 		struct curl_slist *header_list_;
 	public:
@@ -54,7 +55,7 @@ namespace es3 {
 		std::string upload_data(const std::string &path,
 								const char *data, uint64_t size,
 								const header_map_t& opts=header_map_t());
-		std::string download_data(const std::string &path,
+		void download_data(const std::string &path,
 			uint64_t offset, char *data, uint64_t size,
 			const header_map_t& opts=header_map_t());
 
@@ -67,7 +68,8 @@ namespace es3 {
 
 		std::string find_region();
 	private:
-		void check_for_errors(const std::string &curl_res, int code);
+		void checked(int curl_code);
+		void check_for_errors(const std::string &curl_res);
 		void prepare(const std::string &verb,
 				  const std::string &path,
 				  const header_map_t &opts=header_map_t());
