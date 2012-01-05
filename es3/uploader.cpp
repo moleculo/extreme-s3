@@ -108,7 +108,7 @@ public:
 		return "pump"+int_to_string(get_class_limit());
 	}
 
-	virtual int get_class_limit() const
+	virtual size_t get_class_limit() const
 	{
 		return content_->conn_->max_readers_;
 	}

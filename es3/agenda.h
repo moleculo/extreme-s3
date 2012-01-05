@@ -18,7 +18,7 @@ namespace es3 {
 		virtual ~sync_task() {}
 
 		virtual std::string get_class() const { return "def"; }
-		virtual int get_class_limit() const { return -1; }
+		virtual size_t get_class_limit() const { return 0; }
 		virtual void operator()(agenda_ptr agenda) = 0;
 	};
 	typedef boost::shared_ptr<sync_task> sync_task_ptr;
@@ -26,19 +26,19 @@ namespace es3 {
 	class agenda : public boost::enable_shared_from_this<agenda>
 	{
 		agenda(size_t thread_num);
-		size_t thread_num_;
+		const size_t thread_num_;
 
-		std::vector<sync_task_ptr> tasks_;
-		size_t num_working_;
+		std::mutex m_; //This mutex protects the following data {
 		std::condition_variable condition_;
-		std::mutex m_;
+		std::vector<sync_task_ptr> tasks_;
+		std::map<std::string, size_t> classes_;
+		size_t num_working_;
+		//}
 
-		std::map<std::string, int> classes_;
-		friend class task_executor;
-
-		std::mutex stats_m_;
+		std::mutex stats_m_; //This mutex protects the following data {
 		size_t num_submitted_, num_done_, num_failed_;
 		std::map<std::string, std::pair<uint64_t, uint64_t> > progress_;
+		//}
 	public:
 		static boost::shared_ptr<agenda> make_new(size_t thread_num);
 
@@ -48,6 +48,8 @@ namespace es3 {
 
 		void draw_progress();
 		void draw_progress_widget();
+
+		friend class task_executor;
 	};
 
 }; //namespace es3

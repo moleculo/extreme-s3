@@ -89,7 +89,7 @@ namespace es3 {
 		}
 
 		virtual std::string get_class() const;
-		virtual int get_class_limit() const;
+		virtual size_t get_class_limit() const;
 		virtual void operator()(agenda_ptr agenda);
 	};
 

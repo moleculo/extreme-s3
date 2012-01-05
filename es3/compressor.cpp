@@ -25,7 +25,7 @@ namespace es3
 		{
 			return "compression"+int_to_string(get_class_limit());
 		}
-		virtual int get_class_limit() const
+		virtual size_t get_class_limit() const
 		{
 			return parent_->context_->max_compressors_;
 		}
@@ -218,7 +218,7 @@ std::string file_decompressor::get_class() const
 	return "decompression"+int_to_string(get_class_limit());
 }
 
-int file_decompressor::get_class_limit() const
+size_t file_decompressor::get_class_limit() const
 {
 	return context_->max_compressors_;
 }

@@ -14,9 +14,9 @@ agenda_ptr agenda::make_new(size_t thread_num)
 }
 
 agenda::agenda(size_t thread_num) : num_working_(),
-	num_submitted_(), num_done_(), num_failed_()
+	num_submitted_(), num_done_(), num_failed_(),
+	thread_num_(thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+1)
 {
-	thread_num_ = thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+1;
 }
 
 namespace es3
@@ -43,8 +43,8 @@ namespace es3
 				{
 					sync_task_ptr cur_task = *iter;
 					//Check if there are too many tasks of this type running
-					int cur_num=agenda_->classes_[cur_task->get_class()];
-					if (cur_task->get_class_limit()!=-1 &&
+					size_t cur_num=agenda_->classes_[cur_task->get_class()];
+					if (cur_task->get_class_limit()!=0 &&
 							cur_task->get_class_limit()<=cur_num)
 						continue;
 
@@ -62,6 +62,7 @@ namespace es3
 		{
 			u_guard_t lock(agenda_->m_);
 			agenda_->num_working_--;
+			assert(agenda_->classes_[cur_task->get_class()]>0);
 			agenda_->classes_[cur_task->get_class()]--;
 			if (agenda_->tasks_.empty() && agenda_->num_working_==0 ||
 					cur_task->get_class_limit()!=-1)
@@ -95,20 +96,26 @@ namespace es3
 						if (code.code()==errNone)
 						{
 							VLOG(1) << "INFO: " << ex.what();
+							sleep(5);
 							continue;
 						} else if (code.code()==errWarn)
 						{
 							VLOG(0) << "WARN: " << ex.what();
+							sleep(5);
 							continue;
 						} else
 						{
 							VLOG(0) << ex.what();
 							break;
 						}
+					} catch(const std::exception &ex)
+					{
+						VLOG(0) << "ERROR: " << ex.what();
+						break;
 					} catch(...)
 					{
-						cleanup(cur_task, true);
-						throw;
+						VLOG(0) << "Unknown exception. Skipping";
+						break;
 					}
 				}
 
