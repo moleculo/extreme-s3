@@ -17,12 +17,12 @@ namespace es3 {
 		void create_schedule();
 
 	private:
-		void process_dir(file_map_t *cur_remote,
-						 const std::string &cur_local,
-						 const std::string &cur_remote_path);
+		void process_dir(file_map_t *cur_remote_list,
+						 const std::string &cur_remote_dir,
+						 const bf::path &cur_local_dir);
 
 		void process_missing(const file_map_t &cur,
-							 const std::string &cur_remote_path);
+							 const std::string &cur_local_path);
 	};
 
 }; //namespace es3

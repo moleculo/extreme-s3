@@ -14,8 +14,7 @@ using namespace boost::filesystem;
 void local_file_deleter::operator ()(agenda_ptr agenda_)
 {
 	VLOG(1) << "Removing " << file_;
-	path p(file_);
-	remove_all(p);
+	bf::remove_all(file_);
 }
 
 struct download_content

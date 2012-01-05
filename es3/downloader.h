@@ -16,10 +16,10 @@ namespace es3 {
 
 	public:
 		file_downloader(const context_ptr &conn,
-					  const std::string &path,
+					  const bf::path &path,
 					  const std::string &remote,
 					  bool delete_dir = false)
-			: conn_(conn), path_(path), remote_(remote),
+			: conn_(conn), path_(path.string()), remote_(remote),
 			  delete_dir_(delete_dir)
 		{
 		}
@@ -30,9 +30,9 @@ namespace es3 {
 
 	class local_file_deleter : public sync_task
 	{
-		const std::string file_;
+		const bf::path file_;
 	public:
-		local_file_deleter(const std::string &file)
+		local_file_deleter(const bf::path &file)
 			: file_(file)
 		{
 		}

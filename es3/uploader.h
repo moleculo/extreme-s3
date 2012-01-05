@@ -19,9 +19,9 @@ namespace es3 {
 		const std::string remote_;
 	public:
 		file_uploader(const context_ptr &conn,
-					  const std::string &path,
+					  const bf::path &path,
 					  const std::string &remote)
-			: conn_(conn), path_(path), remote_(remote)
+			: conn_(conn), path_(path.string()), remote_(remote)
 		{
 		}
 
@@ -33,13 +33,12 @@ namespace es3 {
 		void simple_upload(agenda_ptr ag, upload_content_ptr content);
 	};
 
-	class file_deleter : public sync_task
+	class remote_file_deleter : public sync_task
 	{
 		const context_ptr conn_;
 		const std::string remote_;
 	public:
-		file_deleter(const context_ptr &conn,
-					  const std::string &remote)
+		remote_file_deleter(const context_ptr &conn, const std::string &remote)
 			: conn_(conn), remote_(remote)
 		{
 		}

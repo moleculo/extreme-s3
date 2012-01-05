@@ -5,7 +5,6 @@
 #include <set>
 #include <boost/filesystem.hpp>
 #include <iostream>
-#include "workaround.hpp"
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -22,29 +21,28 @@ void synchronizer::create_schedule()
 	//Retrieve the list of remote files
 	s3_connection conn(to_);
 	file_map_t remotes = conn.list_files(to_->remote_root_, "");
-	process_dir(&remotes, to_->local_root_.string(), to_->remote_root_);
+	process_dir(&remotes, to_->remote_root_, to_->local_root_);
 }
 
-void synchronizer::process_dir(file_map_t *cur_remote,
-							  const std::string &cur_local,
-							  const std::string &cur_remote_path)
+void synchronizer::process_dir(file_map_t *cur_remote_list,
+	const std::string &cur_remote_dir, const bf::path &cur_local_dir)
 {
-	file_map_t cur_remote_copy = cur_remote ? *cur_remote : file_map_t();
+	assert(cur_remote_dir.at(cur_remote_dir.size()-1)=='/');
 
-	for(directory_iterator iter=directory_iterator(cur_local);
+	file_map_t cur_remote_copy = cur_remote_list ?
+				*cur_remote_list : file_map_t();
+
+	for(directory_iterator iter=directory_iterator(cur_local_dir);
 		iter!=directory_iterator(); ++iter)
 	{
 		const directory_entry &dent = *iter;
-		std::string new_remote_path = cur_remote_path+
-				get_file(dent.path().filename());
+		bf::path cur_local_path=bf::absolute(dent.path());
+		std::string cur_local_filename=cur_local_path.filename().string();
+		std::string cur_remote_path = cur_remote_path+cur_local_filename;
 
 		remote_file_ptr cur_remote_child=try_get(
-					cur_remote_copy, get_file(dent.path().filename()),
-					remote_file_ptr());
-		cur_remote_copy.erase(get_file(dent.path().filename()));
-
-		std::string dent_path=get_file(
-					system_complete(dent.path()).string());
+					cur_remote_copy, cur_local_filename, remote_file_ptr());
+		cur_remote_copy.erase(cur_local_filename);
 
 		if (dent.status().type()==directory_file)
 		{
@@ -57,14 +55,14 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 					{
 						if (to_->upload_)
 						{
-							sync_task_ptr task(new file_deleter(to_,
+							sync_task_ptr task(new remote_file_deleter(to_,
 								 cur_remote_child->full_name_));
 							agenda_->schedule(task);
-							process_dir(0, dent_path, new_remote_path+"/");
+							process_dir(0, cur_remote_path+"/", cur_local_path);
 						} else
 						{
 							sync_task_ptr task(new file_downloader(to_,
-								dent_path, new_remote_path, true));
+								cur_local_path, cur_remote_path, true));
 							agenda_->schedule(task);
 						}
 					} else
@@ -76,16 +74,16 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 					}
 				} else
 					process_dir(&cur_remote_child->children_,
-						dent_path, new_remote_path+"/");
+						cur_remote_path+"/", cur_local_path);
 			} else
 			{
 				if (to_->upload_)
 				{
-					process_dir(0, dent_path, new_remote_path+"/");
+					process_dir(0, cur_remote_path+"/", cur_local_path);
 				}
 				else
 				{
-					sync_task_ptr task(new local_file_deleter(dent_path));
+					sync_task_ptr task(new local_file_deleter(cur_local_path));
 					agenda_->schedule(task);
 				}
 			}
@@ -97,41 +95,37 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				if (!cur_remote_child)
 				{
 					sync_task_ptr task(new file_uploader(
-						to_, dent_path, new_remote_path));
+						to_, cur_local_path, cur_remote_path));
 					agenda_->schedule(task);
 				}
 				else
 				{
 					sync_task_ptr task(new file_uploader(
-						to_, dent_path, new_remote_path));
+						to_, cur_local_path, cur_remote_path));
 					agenda_->schedule(task);
 				}
 			} else
 			{
 				if (!cur_remote_child)
 				{
-					sync_task_ptr task(new local_file_deleter(dent_path));
+					sync_task_ptr task(new local_file_deleter(cur_local_path));
 					agenda_->schedule(task);
 				}
 				else
 				{
 					sync_task_ptr task(new file_downloader(
-						to_, dent_path, new_remote_path));
+						to_, cur_local_path, cur_remote_path));
 					agenda_->schedule(task);
 				}
 			}
-		} else if (dent.status().type()==symlink_file)
-		{
-			//Symlink
-			//TODO: symlinks?
 		} else
 		{
-			VLOG(0) << "Unknown local file "<< dent.path();
+			VLOG(0) << "Unknown local file type "<< cur_local_path.string();
 		}
 	}
 
 	if (to_->delete_missing_)
-		process_missing(cur_remote_copy, cur_local+"/");
+		process_missing(cur_remote_copy, cur_local_dir.string()+"/");
 }
 
 void synchronizer::process_missing(const file_map_t &cur,
@@ -149,7 +143,7 @@ void synchronizer::process_missing(const file_map_t &cur,
 			if (to_->upload_)
 			{
 				agenda_->schedule(sync_task_ptr(
-					new file_deleter(to_, f->second->full_name_)));
+					new remote_file_deleter(to_, f->second->full_name_)));
 			} else
 			{
 				//Missing local file just means that we need to download it

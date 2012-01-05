@@ -278,7 +278,7 @@ void file_uploader::start_upload(agenda_ptr ag,
 	}
 }
 
-void file_deleter::operator()(agenda_ptr agenda)
+void remote_file_deleter::operator()(agenda_ptr agenda)
 {
 	VLOG(2) << "Removing " << remote_;
 	s3_connection up(conn_);

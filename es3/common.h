@@ -32,8 +32,11 @@
 #include <map>
 #include <mutex>
 #include <stdexcept>
+#include <boost/filesystem.hpp>
 
 namespace es3 {
+	namespace bf = boost::filesystem3;
+
 	void ES3LIB_LOCAL backtrace_it(void);
 
 	typedef std::lock_guard<std::mutex> guard_t;
