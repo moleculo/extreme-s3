@@ -83,8 +83,7 @@ public:
 			VLOG(2) << "Assembling "<< content_->remote_ <<".";
 			//We've completed the upload!
 			s3_connection up2(content_->conn_);
-			up2.complete_multipart(content_->remote_+
-								   "?uploadId="+content_->upload_id_,
+			up2.complete_multipart(content_->remote_, content_->upload_id_,
 								   content_->etags_);
 		}
 	}

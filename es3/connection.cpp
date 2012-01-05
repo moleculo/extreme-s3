@@ -484,7 +484,7 @@ std::string s3_connection::initiate_multipart(
 }
 
 std::string s3_connection::complete_multipart(const std::string &path,
-	const std::vector<std::string> &etags)
+	const std::string &upload_id, const std::vector<std::string> &etags)
 {
 	std::string data="<CompleteMultipartUpload>";
 	for(size_t f=0;f<etags.size();++f)
@@ -500,7 +500,7 @@ std::string s3_connection::complete_multipart(const std::string &path,
 	}
 	data.append("</CompleteMultipartUpload>");
 
-	prepare("POST", path);
+	prepare("POST", path+"?uploadId="+upload_id);
 
 	buf_data data_params(data.c_str(), data.size());
 	curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1);

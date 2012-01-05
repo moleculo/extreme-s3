@@ -70,7 +70,8 @@ namespace es3 {
 		std::string initiate_multipart(const std::string &path,
 									   const header_map_t &opts);
 		std::string complete_multipart(const std::string &path,
-			const std::vector<std::string> &etags);
+									   const std::string &upload_id,
+									   const std::vector<std::string> &etags);
 		file_desc find_mtime_and_size(const std::string &path);
 
 		std::string find_region();
