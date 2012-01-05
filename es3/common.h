@@ -27,13 +27,11 @@
 #endif
 
 #include <boost/shared_ptr.hpp>
-#include <boost/filesystem.hpp>
 #include <string>
 #include <vector>
 #include <map>
-#include <stdexcept>
-
 #include <mutex>
+#include <stdexcept>
 
 namespace es3 {
 	void ES3LIB_LOCAL backtrace_it(void);

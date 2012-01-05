@@ -5,12 +5,7 @@
 #include <openssl/hmac.h>
 #include <openssl/md5.h>
 #include <tinyxml.h>
-#include <iostream>
-#include <assert.h>
-#include <strings.h>
 #include "scope_guard.h"
-#include <fcntl.h>
-#include <errno.h>
 
 using namespace es3;
 
@@ -41,8 +36,7 @@ s3_connection::s3_connection(const context_ptr &conn_data)
 		err(errFatal) << "can't init CURL";
 }
 
-void s3_connection::check_for_errors(const std::string &curl_res,
-									 code_e err_code)
+void s3_connection::check_for_errors(const std::string &curl_res, int err_code)
 {
 	if (curl_res.empty())
 		return;
@@ -64,7 +58,7 @@ void s3_connection::check_for_errors(const std::string &curl_res,
 	if (!message)
 		return;
 
-	err(err_code) << s3_err_code->Value() << " - " << message->Value();
+	err((code_e)err_code) << s3_err_code->Value() << " - " << message->Value();
 }
 
 static int sockopt_callback(void *clientp,
@@ -209,7 +203,7 @@ std::string s3_connection::read_fully(const std::string &verb,
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &res);
 	curl_easy_perform(curl_) | die;
-	check_for_errors(res);
+	check_for_errors(res, errFatal);
 	return res;
 }
 
@@ -461,7 +455,7 @@ std::string s3_connection::initiate_multipart(
 {
 	set_url(path, "");
 	std::string list=read_fully("POST", path+"?uploads", "", opts);
-	check_for_errors(list);
+	check_for_errors(list, errFatal);
 
 	TiXmlDocument doc;
 	doc.Parse(list.c_str()); check(doc);
@@ -506,7 +500,7 @@ std::string s3_connection::complete_multipart(const std::string &path,
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &read_data);
 
 	curl_easy_perform(curl_) | die;
-	check_for_errors(read_data);
+	check_for_errors(read_data, errFatal);
 
 	VLOG(2) << "Completed multipart of " << path;
 	return read_data;
@@ -583,7 +577,7 @@ std::string s3_connection::download_data(const std::string &path,
 std::string s3_connection::find_region()
 {
 	std::string reg_data=read_fully("GET", "/?location");
-	check_for_errors(reg_data);
+	check_for_errors(reg_data, errFatal);
 
 	TiXmlDocument doc;
 	doc.Parse(reg_data.c_str()); check(doc);

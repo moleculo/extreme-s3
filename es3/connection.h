@@ -3,15 +3,11 @@
 
 #include "common.h"
 #include <boost/weak_ptr.hpp>
-#include <tuple>
-#include "errors.h"
 
 typedef void CURL;
 struct curl_slist;
 
 namespace es3 {
-	namespace bf=boost::filesystem3;
-
 	class conn_context;
 	typedef boost::shared_ptr<conn_context> context_ptr;
 
@@ -71,8 +67,7 @@ namespace es3 {
 
 		std::string find_region();
 	private:
-		void check_for_errors(const std::string &curl_res,
-							  code_e code=errFatal);
+		void check_for_errors(const std::string &curl_res, int code);
 		void prepare(const std::string &verb,
 				  const std::string &path,
 				  const header_map_t &opts=header_map_t());
