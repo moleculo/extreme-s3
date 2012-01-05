@@ -23,7 +23,10 @@ namespace es3 {
 		result_code_t() : code_(errNone), desc_()
 		{
 		}
-
+		result_code_t(const result_code_t &other) :
+			code_(other.code_), desc_(other.desc_)
+		{
+		}
 		result_code_t(code_e code, const std::string &desc="None") :
 			code_(code), desc_(desc)
 		{
