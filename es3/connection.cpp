@@ -426,6 +426,8 @@ public:
 std::string s3_connection::upload_data(const std::string &path,
 	const char *data, size_t size, const header_map_t& opts)
 {
+	assert(data && size);
+
 	std::string etag;
 	buf_data read_data(data, size);
 

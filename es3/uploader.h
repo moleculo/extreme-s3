@@ -15,13 +15,13 @@ namespace es3 {
 			public boost::enable_shared_from_this<file_uploader>
 	{
 		const context_ptr conn_;
-		const std::string path_;
+		const bf::path path_;
 		const std::string remote_;
 	public:
 		file_uploader(const context_ptr &conn,
 					  const bf::path &path,
 					  const std::string &remote)
-			: conn_(conn), path_(path.string()), remote_(remote)
+			: conn_(conn), path_(path), remote_(remote)
 		{
 		}
 

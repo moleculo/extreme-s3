@@ -18,7 +18,6 @@
 #define MAX_PART_NUM 10000
 
 using namespace es3;
-using namespace boost::filesystem;
 
 struct es3::upload_content
 {
@@ -64,8 +63,7 @@ public:
 		std::string etag=up.upload_data(part_path,
 										&segment_->data_[0],
 										segment_->data_.size());
-		if (etag.empty())
-			err(errWarn) << "Failed to upload a part " << num_;
+		assert(!etag.empty());
 
 		//Check if the upload is completed
 		guard_t g(content_->lock_);
@@ -256,8 +254,8 @@ void file_uploader::start_upload(agenda_ptr ag,
 	for(int f=0;f<files->sizes_.size();++f)
 		size+=files->sizes_.at(f);
 
-	size_t number_of_segments= size/conn_->segment_size_ +
-			((size%conn_->segment_size_)==0 ? 0:1);
+	size_t number_of_segments = safe_cast<size_t>(size/conn_->segment_size_ +
+			((size%conn_->segment_size_)==0 ? 0:1));
 	if (number_of_segments>MAX_PART_NUM)
 		err(errFatal) << "File "<<remote_ <<" is too big";
 
