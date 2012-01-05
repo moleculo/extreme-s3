@@ -119,27 +119,35 @@ int main(int argc, char **argv)
 	curl_global_init(CURL_GLOBAL_ALL);
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
-	if (cd->zone_=="s3")
+	try
 	{
-		s3_connection conn(cd);
-		std::string region=conn.find_region();
-		if (!region.empty())
-			cd->zone_="s3-"+region;
+		if (cd->zone_=="s3")
+		{
+			s3_connection conn(cd);
+			std::string region=conn.find_region();
+			if (!region.empty())
+				cd->zone_="s3-"+region;
+		}
+
+		if (thread_num==0)
+			thread_num=sysconf(_SC_NPROCESSORS_ONLN)+1;
+
+		//This is done to avoid deadlocks if readers grab all the in-flight
+		//segments. We have to have at least one thread to be able to drain
+		//the upload queue.
+		if(thread_num<=(cd->max_compressors_+cd->max_readers_))
+			thread_num = cd->max_compressors_+cd->max_readers_+2;
+
+		agenda_ptr ag=agenda::make_new(thread_num);
+		synchronizer sync(ag, cd);
+		sync.create_schedule();
+		size_t failed_num=ag->run(!quiet);
+
+		return failed_num==0 ? 0 : 4;
+	} catch(const std::exception &ex)
+	{
+		VLOG(0) << "An error has been encountered during processing. "
+				<< ex.what();
+		return 5;
 	}
-
-	if (thread_num==0)
-		thread_num=sysconf(_SC_NPROCESSORS_ONLN)+1;
-
-	//This is done to avoid deadlocks if readers grab all the in-flight
-	//segments. We have to have at least one thread to be able to drain
-	//the upload queue.
-	if(thread_num<=(cd->max_compressors_+cd->max_readers_))
-		thread_num = cd->max_compressors_+cd->max_readers_+2;
-
-	agenda_ptr ag=agenda::make_new(thread_num);
-	synchronizer sync(ag, cd);
-	sync.create_schedule();
-	size_t failed_num=ag->run(!quiet);
-
-	return failed_num==0 ? 0 : 4;
 }
