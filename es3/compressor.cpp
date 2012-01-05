@@ -49,9 +49,9 @@ namespace es3
 			//Generate the temp name
 			bf::path tmp_nm = bf::path(parent_->context_->scratch_path_) /
 					bf::unique_path("scratchy-%%%%-%%%%-%%%%-%%%%");
-			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT,
-								   S_IRUSR|S_IWUSR)
-							  | libc_die2("Failed to create "+tmp_nm.string()));
+			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT, 0600)
+							  | libc_die2("Failed to create temp file: "
+										  +tmp_nm.string()));
 
 			VLOG(2) << "Compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;

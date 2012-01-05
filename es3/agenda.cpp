@@ -183,7 +183,7 @@ void agenda::draw_progress_widget()
 		str << "Tasks: [" << num_done_ << "/" << num_submitted_
 			<< "]";
 		if (num_failed_)
-			str << " Failed: " << num_failed_;
+			str << " Failed tasks: " << num_failed_;
 		str << "\r";
 	}
 
