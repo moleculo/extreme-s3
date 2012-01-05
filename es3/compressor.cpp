@@ -175,6 +175,7 @@ void file_decompressor::operator()(agenda_ptr agenda)
 
 	uint64_t written_so_far=0;
 	handle_t in_fl(open(source_.c_str(), O_RDONLY));
+	unlink(result_.c_str()); //Prevent some access right foulups
 	handle_t out_fl(open(result_.c_str(), O_WRONLY|O_CREAT, mode_));
 	while(true)
 	{

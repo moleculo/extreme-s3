@@ -15,6 +15,7 @@ namespace po = boost::program_options;
 int main(int argc, char **argv)
 {
 	int verbosity = 0, thread_num = 0;
+	bool quiet=false;
 
 	context_ptr cd(new conn_context());
 	cd->use_ssl_ = false;
@@ -26,6 +27,8 @@ int main(int argc, char **argv)
 			"Path to a file that contains configuration settings")
 		("verbosity,v", po::value<int>(&verbosity)->default_value(0),
 			"Verbosity level [0 - the lowest, 9 - the highest]")
+		("quiet,q", po::value<bool>(&quiet)->default_value(false),
+			"Quiet mode (no progress indicator)")
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
 			"Number of threads used [0 - autodetect]")
 		("scratch-dir,r", po::value<std::string>(
@@ -135,7 +138,7 @@ int main(int argc, char **argv)
 	agenda_ptr ag=agenda::make_new(thread_num);
 	synchronizer sync(ag, cd);
 	sync.create_schedule();
-	ag->run();
+	ag->run(!quiet);
 
 	return 0;
 }

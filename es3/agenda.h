@@ -35,12 +35,19 @@ namespace es3 {
 
 		std::map<std::string, int> classes_;
 		friend class task_executor;
+
+		std::mutex stats_m_;
+		size_t num_submitted_, num_done_;
+		std::map<std::string, std::pair<uint64_t, uint64_t> > progress_;
 	public:
 		static boost::shared_ptr<agenda> make_new(size_t thread_num);
 
 		int advise_capability() const { return thread_num_;}
 		void schedule(sync_task_ptr task);
-		void run();
+		void run(bool visual);
+
+		void draw_progress();
+		void draw_progress_widget();
 	};
 
 }; //namespace es3

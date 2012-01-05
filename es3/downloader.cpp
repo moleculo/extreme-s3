@@ -196,6 +196,7 @@ void file_downloader::operator()(agenda_ptr agenda)
 		dc->local_file_=path_;
 
 	{
+		unlink(dc->local_file_.c_str()); //Prevent some access right foulups
 		handle_t fl(open(dc->local_file_.c_str(),
 						 O_RDWR|O_CREAT, 0600) | libc_die);
 		fallocate64(fl.get(), 0, 0, dc->remote_size_);
