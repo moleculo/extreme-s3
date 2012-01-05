@@ -23,6 +23,7 @@ void es3::throw_libc_err()
 		return; //No error - we might be here accidentally
 	char buf[1024]={0};
 	strerror_r(errno, buf, 1023);
+	std::cerr<<"ERRNO IS "<<errno <<" err is "<<buf<<std::endl;
 	err(errFatal) << "Got error: " << std::string(buf);
 	//Unreachable
 }
