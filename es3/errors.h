@@ -7,8 +7,18 @@
 namespace es3 {
 	class die_t {};
 	extern ES3LIB_PUBLIC const die_t die;
-	class libc_die_t {};
+
+	struct libc_die_t
+	{
+		std::string reason_;
+	};
 	extern ES3LIB_PUBLIC const libc_die_t libc_die;
+	inline libc_die_t libc_die2(const std::string &reason)
+	{
+		libc_die_t res;
+		res.reason_=reason;
+		return res;
+	}
 
 	enum code_e
 	{
@@ -93,13 +103,12 @@ namespace es3 {
 			boost::throw_exception(es3_exception(code));
 	}
 
-	ES3LIB_PUBLIC void throw_libc_err();
-
-	template<class T> T operator | (const T res, const libc_die_t &)
+	ES3LIB_PUBLIC void throw_libc_err(const std::string &desc);
+	template<class T> T operator | (const T res, const libc_die_t &l)
 	{
 		if (res>=0)
 			return res;
-		throw_libc_err();
+		throw_libc_err(l.reason_);
 		return res;
 	}
 

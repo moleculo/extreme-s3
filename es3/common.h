@@ -27,31 +27,17 @@
 #endif
 
 #include <boost/shared_ptr.hpp>
+#include <boost/filesystem.hpp>
 #include <string>
 #include <vector>
 #include <map>
 #include <stdexcept>
 
-#ifndef NDEBUG
-	#include <execinfo.h>
-	#include <stdio.h>
-	#include <stdlib.h>
-	#include <unistd.h>
-
-	inline void backtrace_it(void)
-	{
-		void *buffer[1000];
-		int nptrs = backtrace(buffer, 1000);
-		printf("backtrace() returned %d addresses\n", nptrs);
-		backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-	}
-#else
-	inline void backtrace_it(void) {}
-#endif
-
 #include <mutex>
 
 namespace es3 {
+	void ES3LIB_LOCAL backtrace_it(void);
+
 	typedef std::lock_guard<std::mutex> guard_t;
 	typedef std::unique_lock<std::mutex> u_guard_t;
 
@@ -86,15 +72,15 @@ namespace es3 {
 	class handle_t
 	{
 		int fileno_;
+
+		handle_t(const handle_t& other);
+		handle_t& operator = (const handle_t &other);
 	public:
 		handle_t();
 		explicit handle_t(int fileno);
-		handle_t(const handle_t& other);
-		handle_t& operator = (const handle_t &other);
 		~handle_t();
 
 		uint64_t size() const;
-		handle_t dup() const;
 		int get() const {return fileno_;}
 	};
 

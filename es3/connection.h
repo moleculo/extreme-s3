@@ -10,6 +10,7 @@ typedef void CURL;
 struct curl_slist;
 
 namespace es3 {
+	namespace bf=boost::filesystem3;
 
 	class conn_context;
 	typedef boost::shared_ptr<conn_context> context_ptr;
@@ -24,7 +25,6 @@ namespace es3 {
 	struct remote_file
 	{
 		std::string name_, full_name_;
-		std::string etag_;
 		uint64_t size_;
 
 		bool is_dir_;
@@ -49,14 +49,9 @@ namespace es3 {
 		s3_connection(const context_ptr &conn_data);
 		~s3_connection();
 
-		std::string read_fully_def(const std::string &verb,
-							   const std::string &path)
-		{
-			return read_fully(verb, path, header_map_t());
-		}
-
 		std::string read_fully(const std::string &verb,
 							   const std::string &path,
+							   const std::string &args="",
 							   const header_map_t &opts=header_map_t());
 		file_map_t list_files(const std::string &path,
 							  const std::string &prefix);
@@ -89,7 +84,6 @@ namespace es3 {
 
 		void set_url(const std::string &path, const std::string &args);
 		void deconstruct_file(file_map_t &res, const std::string &name,
-							  const std::string &etag,
 							  const std::string &size);
 	};
 

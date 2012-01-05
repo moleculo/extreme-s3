@@ -13,15 +13,13 @@ namespace es3 {
 		const bool delete_dir_;
 		const std::string path_;
 		const std::string remote_;
-		const std::string etag_;
 
 	public:
 		file_downloader(const context_ptr &conn,
 					  const std::string &path,
 					  const std::string &remote,
-					  const std::string &etag,
 					  bool delete_dir = false)
-			: conn_(conn), path_(path), remote_(remote), etag_(etag),
+			: conn_(conn), path_(path), remote_(remote),
 			  delete_dir_(delete_dir)
 		{
 		}

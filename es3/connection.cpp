@@ -199,10 +199,13 @@ static size_t string_appender(const char *ptr,
 
 std::string s3_connection::read_fully(const std::string &verb,
 									  const std::string &path,
+									  const std::string &args,
 									  const header_map_t &opts)
 {
 	std::string res;
 	prepare(verb, path, opts);
+	if (!args.empty())
+		set_url(path, args);
 	curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
 	curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &res);
 	curl_easy_perform(curl_) | die;
@@ -217,18 +220,12 @@ file_map_t s3_connection::list_files(const std::string &path,
 	std::string marker;
 	while(true)
 	{
-		std::string cur_path;
+		std::string args;
 		if (prefix.empty())
-			cur_path=path+"?marker="+escape(marker);
+			args="?marker="+escape(marker);
 		else
-			cur_path=path+"?prefix="+escape(prefix)+"&marker="+escape(marker);
-
-		std::string list;
-		prepare("GET", path);
-		set_url(cur_path, "");
-		curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender);
-		curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &list);
-		curl_easy_perform(curl_) | die;
+			args="?prefix="+escape(prefix)+"&marker="+escape(marker);
+		std::string list=read_fully("GET", path, args);
 
 		TiXmlDocument doc;
 		doc.Parse(list.c_str()); check(doc);
@@ -244,13 +241,11 @@ file_map_t s3_connection::list_files(const std::string &path,
 		{
 			std::string name = node->FirstChild("Key")->
 					FirstChild()->ToText()->Value();
-			std::string etag = node->FirstChild("ETag")->
-					FirstChild()->ToText()->Value();
 			std::string size = node->FirstChild("Size")->
 					FirstChild()->ToText()->Value();
 			if (size!="0")
 			{
-				deconstruct_file(res, name, etag, size);
+				deconstruct_file(res, name, size);
 			}
 
 			node=node->NextSibling("Contents");
@@ -269,7 +264,6 @@ file_map_t s3_connection::list_files(const std::string &path,
 
 void s3_connection::deconstruct_file(file_map_t &res,
 									 const std::string &name,
-									 const std::string &etag,
 									 const std::string &size)
 {
 	assert(size!="0");
@@ -313,7 +307,6 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	fl->is_dir_ = false;
 	fl->name_ = cur_name;
 	fl->full_name_ = conn_data_->remote_root_+name;
-	fl->etag_ = etag;
 	fl->size_ = atoll(size.c_str());
 	fl->parent_ = cur_parent;
 	if (cur_pos->find(cur_name)!=cur_pos->end())
@@ -467,7 +460,7 @@ std::string s3_connection::initiate_multipart(
 	const std::string &path, const header_map_t &opts)
 {
 	set_url(path, "");
-	std::string list=read_fully("POST", path+"?uploads", opts);
+	std::string list=read_fully("POST", path+"?uploads", "", opts);
 	check_for_errors(list);
 
 	TiXmlDocument doc;

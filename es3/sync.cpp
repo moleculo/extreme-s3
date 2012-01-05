@@ -64,7 +64,7 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 						} else
 						{
 							sync_task_ptr task(new file_downloader(to_,
-								dent_path, new_remote_path, "", true));
+								dent_path, new_remote_path, true));
 							agenda_->schedule(task);
 						}
 					} else
@@ -97,14 +97,13 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				if (!cur_remote_child)
 				{
 					sync_task_ptr task(new file_uploader(
-						to_, dent_path, new_remote_path, ""));
+						to_, dent_path, new_remote_path));
 					agenda_->schedule(task);
 				}
 				else
 				{
 					sync_task_ptr task(new file_uploader(
-						to_, dent_path, new_remote_path,
-						cur_remote_child->etag_));
+						to_, dent_path, new_remote_path));
 					agenda_->schedule(task);
 				}
 			} else
@@ -117,8 +116,7 @@ void synchronizer::process_dir(file_map_t *cur_remote,
 				else
 				{
 					sync_task_ptr task(new file_downloader(
-						to_, dent_path, new_remote_path,
-						cur_remote_child->etag_));
+						to_, dent_path, new_remote_path));
 					agenda_->schedule(task);
 				}
 			}
@@ -157,7 +155,7 @@ void synchronizer::process_missing(const file_map_t &cur,
 				//Missing local file just means that we need to download it
 				agenda_->schedule(sync_task_ptr(
 					new file_downloader(to_, cur_local_path+f->first,
-										f->second->full_name_,"")));
+										f->second->full_name_)));
 			}
 		}
 	}

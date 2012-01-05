@@ -111,26 +111,6 @@ handle_t::handle_t(int fileno)
 	fileno_ = fileno | libc_die;
 }
 
-handle_t::handle_t(const handle_t& other)
-{
-	fileno_ = ::dup(other.fileno_) | libc_die;
-}
-
-handle_t& handle_t::operator = (const handle_t &other)
-{
-	if (this==&other) return *this;
-	if (fileno_) close(fileno_);
-	fileno_ = ::dup(other.fileno_) | libc_die;
-	return *this;
-}
-
-handle_t handle_t::dup() const
-{
-	if (!fileno_)
-		return handle_t();
-	return handle_t(::dup(fileno_));
-}
-
 uint64_t handle_t::size() const
 {
 	if (fileno_==0)
@@ -153,3 +133,45 @@ bool es3::ci_string_less::operator()(const std::string &lhs,
 {
 	return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ? 1 : 0;
 }
+
+#ifndef NDEBUG
+	#include <execinfo.h>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <unistd.h>
+	#include <execinfo.h>
+	#include <cxxabi.h>
+
+	static std::string demangle(const char* symbol)
+	{
+		char temp[256];
+
+		//first, try to demangle a c++ name
+		if (1 == sscanf(symbol, "%*[^(]%*[^_]%127[^)+]", temp))
+		{
+			size_t size;
+			int status=0;
+			char* demangled=abi::__cxa_demangle(temp, NULL, &size, &status);
+			if (demangled)
+			{
+				std::string result(demangled);
+				free(demangled);
+				return result;
+			}
+		}
+		return symbol;
+	}
+
+	void es3::backtrace_it(void)
+	{
+		#define MAX_FRAMES 100
+		void* addresses[MAX_FRAMES];
+		const int size = backtrace(addresses, MAX_FRAMES);
+		char** symbols = backtrace_symbols(addresses, size);
+		for (int x = 0; x < size; ++x)
+			fprintf(stderr, "%s\n", demangle(symbols[x]).c_str());
+		free(symbols);
+	}
+#else
+	void es3::backtrace_it(void) {}
+#endif
