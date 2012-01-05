@@ -8,8 +8,8 @@
 namespace es3 {
 	struct upload_content;
 	typedef boost::shared_ptr<upload_content> upload_content_ptr;
-	struct compressed_result;
-	typedef boost::shared_ptr<compressed_result> zip_result_ptr;
+	struct scattered_files;
+	typedef boost::shared_ptr<scattered_files> files_ptr;
 
 	class file_uploader : public sync_task,
 			public boost::enable_shared_from_this<file_uploader>
@@ -28,7 +28,7 @@ namespace es3 {
 		virtual void operator()(agenda_ptr agenda);
 	private:
 		void start_upload(agenda_ptr ag,
-						  upload_content_ptr content, zip_result_ptr files,
+						  upload_content_ptr content, files_ptr files,
 						  bool compressed);
 		void simple_upload(agenda_ptr ag, upload_content_ptr content);
 	};

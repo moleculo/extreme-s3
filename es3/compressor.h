@@ -12,34 +12,34 @@ namespace es3 {
 	class conn_context;
 	typedef boost::shared_ptr<conn_context> context_ptr;
 
-	struct compressed_result
+	struct scattered_files
 	{
 		std::vector<std::string> files_;
 		std::vector<uint64_t> sizes_;
 		bool was_compressed_;
 
-		compressed_result(size_t sz)
+		scattered_files(size_t sz)
 		{
 			files_.resize(sz);
 			sizes_.resize(sz);
 			was_compressed_ = true;
 		}
 
-		compressed_result(const std::string &file, uint64_t sz)
+		scattered_files(const std::string &file, uint64_t sz)
 		{
 			files_.push_back(file);
 			sizes_.push_back(sz);
 			was_compressed_=false;
 		}
-		~compressed_result()
+		~scattered_files()
 		{
 			if (was_compressed_)
 				for(auto f =files_.begin();f!=files_.end();++f)
 					if (!f->empty()) unlink(f->c_str());
 		}
 	};
-	typedef boost::shared_ptr<compressed_result> zip_result_ptr;
-	typedef std::function<void(zip_result_ptr)> zipped_callback;
+	typedef boost::shared_ptr<scattered_files> files_ptr;
+	typedef std::function<void(files_ptr)> files_finished_callback;
 
 	class file_compressor : public sync_task,
 			public boost::enable_shared_from_this<file_compressor>
@@ -48,16 +48,16 @@ namespace es3 {
 
 		context_ptr context_;
 		const std::string path_;
-		zipped_callback on_finish_;
+		files_finished_callback on_finish_;
 
-		zip_result_ptr result_;
+		files_ptr result_;
 		volatile size_t num_pending_;
 
 		friend struct compress_task;
 	public:
 		file_compressor(const std::string &path,
 						context_ptr context,
-						zipped_callback on_finish)
+						files_finished_callback on_finish)
 			: path_(path), context_(context), on_finish_(on_finish)
 		{
 		}

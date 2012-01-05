@@ -92,11 +92,11 @@ class file_pump : public sync_task,
 		public boost::enable_shared_from_this<file_pump>
 {
 	upload_content_ptr content_;
-	zip_result_ptr files_;
+	files_ptr files_;
 	size_t cur_segment_, number_of_segments_;
 public:
 	file_pump(upload_content_ptr content,
-		zip_result_ptr files, size_t cur_segment, size_t number_of_segments) :
+		files_ptr files, size_t cur_segment, size_t number_of_segments) :
 		content_(content), files_(files),
 		cur_segment_(cur_segment), number_of_segments_(number_of_segments)
 	{
@@ -233,7 +233,7 @@ void file_uploader::operator()(agenda_ptr agenda)
 
 	if (do_compress)
 	{
-		zipped_callback on_finish=boost::bind(
+		files_finished_callback on_finish=boost::bind(
 					&file_uploader::start_upload, shared_from_this(),
 					agenda, up_data, _1, true);
 
@@ -242,14 +242,14 @@ void file_uploader::operator()(agenda_ptr agenda)
 	} else
 	{
 		handle_t fl(open(path_.c_str(), O_RDONLY) | libc_die);
-		zip_result_ptr files(new compressed_result(path_, fl.size()));
+		files_ptr files(new scattered_files(path_, fl.size()));
 		start_upload(agenda, up_data, files, false);
 	}
 }
 
 void file_uploader::start_upload(agenda_ptr ag,
 								 upload_content_ptr content,
-								 zip_result_ptr files,
+								 files_ptr files,
 								 bool compressed)
 {
 	uint64_t size = 0;

@@ -128,7 +128,7 @@ void file_compressor::operator()(agenda_ptr agenda)
 	uint64_t num_blocks = file_sz / block_sz +
 			((file_sz%block_sz)==0?0:1);
 
-	result_=zip_result_ptr(new compressed_result(num_blocks));
+	result_=files_ptr(new scattered_files(num_blocks));
 	num_pending_ = num_blocks;
 	for(uint64_t f=0; f<num_blocks; ++f)
 	{
