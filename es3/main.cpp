@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 	agenda_ptr ag=agenda::make_new(thread_num);
 	synchronizer sync(ag, cd);
 	sync.create_schedule();
-	ag->run(!quiet);
+	size_t failed_num=ag->run(!quiet);
 
-	return 0;
+	return failed_num==0 ? 0 : 4;
 }

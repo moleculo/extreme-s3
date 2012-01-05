@@ -14,7 +14,7 @@ agenda_ptr agenda::make_new(size_t thread_num)
 }
 
 agenda::agenda(size_t thread_num) : num_working_(),
-	num_submitted_(), num_done_()
+	num_submitted_(), num_done_(), num_failed_()
 {
 	thread_num_ = thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+1;
 }
@@ -58,7 +58,7 @@ namespace es3
 			}
 		}
 
-		void cleanup(sync_task_ptr cur_task)
+		void cleanup(sync_task_ptr cur_task, bool fail)
 		{
 			u_guard_t lock(agenda_->m_);
 			agenda_->num_working_--;
@@ -69,6 +69,8 @@ namespace es3
 
 			guard_t lockst(agenda_->stats_m_);
 			agenda_->num_done_++;
+			if (fail)
+				agenda_->num_failed_++;
 		}
 
 		void operator ()()
@@ -79,11 +81,13 @@ namespace es3
 				if (!cur_task)
 					break;
 
+				bool fail=true;
 				for(int f=0; f<10; ++f)
 				{
 					try
 					{
 						(*cur_task)(agenda_);
+						fail=false;
 						break;
 					} catch (const es3_exception &ex)
 					{
@@ -103,12 +107,12 @@ namespace es3
 						}
 					} catch(...)
 					{
-						cleanup(cur_task);
+						cleanup(cur_task, true);
 						throw;
 					}
 				}
 
-				cleanup(cur_task);
+				cleanup(cur_task, fail);
 			}
 		}
 	};
@@ -125,7 +129,7 @@ void agenda::schedule(sync_task_ptr task)
 	num_submitted_++;
 }
 
-void agenda::run(bool visual)
+size_t agenda::run(bool visual)
 {
 	std::vector<std::thread> threads;
 	for(int f=0;f<thread_num_;++f)
@@ -146,6 +150,8 @@ void agenda::run(bool visual)
 		for(int f=0;f<thread_num_;++f)
 			threads.at(f).join();
 	}
+
+	return num_failed_;
 }
 
 void agenda::draw_progress()
@@ -168,7 +174,10 @@ void agenda::draw_progress_widget()
 	{
 		guard_t lockst(stats_m_);
 		str << "Tasks: [" << num_done_ << "/" << num_submitted_
-			<< "]" << "\r";
+			<< "]";
+		if (num_failed_)
+			str << " Failed: " << num_failed_;
+		str << "\r";
 	}
 
 	std::cerr << str.str(); //No std::endl
