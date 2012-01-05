@@ -53,10 +53,10 @@ namespace es3 {
 		file_map_t list_files(const std::string &path,
 							  const std::string &prefix);
 		std::string upload_data(const std::string &path,
-								const char *data, uint64_t size,
+								const char *data, size_t size,
 								const header_map_t& opts=header_map_t());
 		void download_data(const std::string &path,
-			uint64_t offset, char *data, uint64_t size,
+			uint64_t offset, char *data, size_t size,
 			const header_map_t& opts=header_map_t());
 
 		std::string initiate_multipart(const std::string &path,

@@ -424,7 +424,7 @@ public:
 };
 
 std::string s3_connection::upload_data(const std::string &path,
-	const char *data, uint64_t size, const header_map_t& opts)
+	const char *data, size_t size, const header_map_t& opts)
 {
 	std::string etag;
 	buf_data read_data(data, size);
@@ -433,7 +433,8 @@ std::string s3_connection::upload_data(const std::string &path,
 	checked(curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag));
 	checked(curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag));
 	checked(curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1));
-	checked(curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size));
+	checked(curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE,
+							 uint64_t(size)));
 	checked(curl_easy_setopt(curl_, CURLOPT_READFUNCTION,
 							 &buf_data::read_func));
 	checked(curl_easy_setopt(curl_, CURLOPT_READDATA, &read_data));
@@ -544,10 +545,10 @@ public:
 };
 
 void s3_connection::download_data(const std::string &path,
-	uint64_t offset, char *data, uint64_t size, const header_map_t& opts)
+	uint64_t offset, char *data, size_t size, const header_map_t& opts)
 {
 	prepare("GET", path, opts);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, size);
+	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(size));
 
 	std::string range=int_to_string(offset)+"-"+
 			int_to_string(offset+size-1);
