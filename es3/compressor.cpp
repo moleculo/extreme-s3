@@ -5,8 +5,8 @@
 #include <zlib.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include "scope_guard.h"
-#include "workaround.hpp"
 #include "errors.h"
 
 using namespace es3;
@@ -178,9 +178,17 @@ void file_decompressor::operator()(agenda_ptr agenda)
 	buf_out.resize(1024*1024*2);
 
 	uint64_t written_so_far=0;
-	handle_t in_fl(open(source_.c_str(), O_RDONLY));
-	unlink(result_.c_str()); //Prevent some access right foulups
-	handle_t out_fl(open(result_.c_str(), O_WRONLY|O_CREAT, mode_));
+	handle_t in_fl(open(source_.c_str(), O_RDONLY) |
+				   libc_die2("Failed to decompress to "+result_.string()+
+							 ", can't open temporary file"));
+
+	//Create the temporary output file
+	path temp_name_template=result_.string()+"-%%%%%%%%%";
+	path temp_out_name=bf::unique_path(temp_name_template);
+	ON_BLOCK_EXIT(&unlink, temp_out_name.c_str());
+
+	handle_t out_fl(open(temp_out_name.c_str(), O_WRONLY|O_CREAT, 0600) |
+					libc_die2("Failed to decompress to "+result_.string()));
 	while(true)
 	{
 		size_t cur_chunk=read(in_fl.get(), &buf[0], buf.size()) | libc_die;
@@ -196,7 +204,7 @@ void file_decompressor::operator()(agenda_ptr agenda)
 			stream.avail_out = buf_out.size();
 			int res = inflate(&stream, Z_SYNC_FLUSH);
 			if (res<0)
-				err(errFatal) << "Failed to decompress " << result_;
+				err(errFatal) << "GZ error, failed to decompress " << result_;
 
 			size_t to_write = buf_out.size()-stream.avail_out;
 			written_so_far+=to_write;
@@ -211,7 +219,11 @@ void file_decompressor::operator()(agenda_ptr agenda)
 		}
 	}
 
-	last_write_time(result_, mtime_) ;
+	bf::last_write_time(temp_out_name, mtime_);
+	chmod(temp_out_name.c_str(), mode_)
+			| libc_die2("Failed to set mode on "+result_.string());
+	rename(temp_out_name.c_str(), result_.c_str())
+			| libc_die2("Failed to replace "+result_.string());
 }
 
 std::string file_decompressor::get_class() const

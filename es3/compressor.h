@@ -72,14 +72,14 @@ namespace es3 {
 			public boost::enable_shared_from_this<file_decompressor>
 	{
 		context_ptr context_;
-		const std::string source_;
-		const std::string result_;
+		const bf::path source_;
+		const bf::path result_;
 		time_t mtime_;
 		mode_t mode_;
 		bool delete_on_stop_;
 	public:
-		file_decompressor(context_ptr context, const std::string &source,
-						  const std::string &result, time_t mtime, mode_t mode,
+		file_decompressor(context_ptr context, const bf::path &source,
+						  const bf::path &result, time_t mtime, mode_t mode,
 						  bool delete_on_stop)
 			: context_(context), source_(source), result_(result),
 			  delete_on_stop_(delete_on_stop), mtime_(mtime), mode_(mode)

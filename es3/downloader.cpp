@@ -1,5 +1,4 @@
 #include "downloader.h"
-#include "workaround.hpp"
 #include "compressor.h"
 #include "context.h"
 #include "errors.h"
@@ -27,12 +26,13 @@ struct download_content
 	size_t num_segments_, segments_read_;
 	size_t remote_size_, raw_size_;
 
-	std::string remote_path_,local_file_, target_file_;
-	bool delete_temp_file_;
+	std::string remote_path_;
+	bf::path local_file_, target_file_;
+	bool delete_temp_file_, compressed_;
 
 	download_content() : mtime_(), num_segments_(), segments_read_(),
 		remote_size_(), raw_size_(), delete_temp_file_(true),
-		mode_(0664) {}
+		mode_(0664), compressed_() {}
 	~download_content()
 	{
 		if (local_file_!=target_file_ && delete_temp_file_)
@@ -73,18 +73,24 @@ public:
 		if (content_->segments_read_==content_->num_segments_)
 		{
 			//Check if we need to decompress the file
-			if (content_->local_file_!=content_->target_file_)
+			if (content_->compressed_)
 			{
 				//Yep, we do need to decompress it
 				sync_task_ptr dl(new file_decompressor(ctx,
 					content_->local_file_, content_->target_file_,
 					content_->mtime_, content_->mode_, true));
+				//file decompressor will delete it
 				content_->delete_temp_file_=false;
 				agenda->schedule(dl);
 			} else
 			{
-				chmod(content_->target_file_.c_str(), content_->mode_);
-				last_write_time(content_->target_file_, content_->mtime_) ;
+				std::string local_nm=content_->local_file_.string();
+				std::string tgt_nm=content_->target_file_.string();
+				bf::last_write_time(local_nm, content_->mtime_);
+				chmod(local_nm.c_str(), content_->mode_)
+						| libc_die2("Failed to set mode on "+tgt_nm);
+				rename(local_nm.c_str(), tgt_nm.c_str())
+						| libc_die2("Failed to replace "+tgt_nm);
 			}
 		}
 	}
@@ -133,9 +139,9 @@ public:
 				<< content_->num_segments_ << " of " << content_->remote_path_;
 
 		s3_connection conn(ctx);
-		seg->data_.resize(size);
+		seg->data_.resize(safe_cast<size_t>(size));
 		conn.download_data(content_->remote_path_, start_offset,
-						   &seg->data_[0], size);
+						   &seg->data_[0], safe_cast<size_t>(size));
 
 		VLOG(2) << "Finished downloading part " << cur_segment_ << " out of "
 				<< content_->num_segments_ << " of " << content_->remote_path_;
@@ -170,8 +176,8 @@ void file_downloader::operator()(agenda_ptr agenda)
 	download_content_ptr dc(new download_content());
 	dc->ctx_=conn_;
 
-	size_t seg_num = mod.remote_size_/conn_->segment_size_ +
-			((mod.remote_size_%conn_->segment_size_)==0?0:1);
+	size_t seg_num = safe_cast<size_t>(mod.remote_size_/conn_->segment_size_ +
+				((mod.remote_size_%conn_->segment_size_)==0?0:1));
 	if (seg_num>MAX_SEGMENTS)
 		err(errFatal) << "Segment size is too small for " << remote_;
 
@@ -181,6 +187,7 @@ void file_downloader::operator()(agenda_ptr agenda)
 	dc->segments_read_=0;
 	dc->remote_size_=mod.remote_size_;
 	dc->raw_size_=mod.raw_size_;
+	dc->compressed_=mod.compressed;
 
 	dc->remote_path_=remote_;
 	dc->target_file_=path_;
@@ -189,11 +196,14 @@ void file_downloader::operator()(agenda_ptr agenda)
 
 	if (mod.compressed)
 	{
-		path tmp_nm = path(conn_->scratch_path_) /
-				unique_path("scratchy-%%%%-%%%%-%%%%-%%%%-dl");
+		path tmp_nm = bf::path(conn_->scratch_path_) /
+				bf::unique_path("scratchy-%%%%-%%%%-%%%%-%%%%-dl");
 		dc->local_file_=tmp_nm.c_str();
 	} else
-		dc->local_file_=path_;
+	{
+		path tmp_nm = path_.string()+"-%%%%%%%%";
+		dc->local_file_=bf::unique_path(tmp_nm);
+	}
 
 	{
 		unlink(dc->local_file_.c_str()); //Prevent some access right foulups

@@ -11,7 +11,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <boost/bind.hpp>
-#include "workaround.hpp"
 #include "compressor.h"
 
 #define MIN_PART_SIZE (16*1024*1024)

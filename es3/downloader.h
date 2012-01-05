@@ -11,7 +11,7 @@ namespace es3 {
 	{
 		const context_ptr conn_;
 		const bool delete_dir_;
-		const std::string path_;
+		const bf::path path_;
 		const std::string remote_;
 
 	public:
@@ -19,7 +19,7 @@ namespace es3 {
 					  const bf::path &path,
 					  const std::string &remote,
 					  bool delete_dir = false)
-			: conn_(conn), path_(path.string()), remote_(remote),
+			: conn_(conn), path_(path), remote_(remote),
 			  delete_dir_(delete_dir)
 		{
 		}

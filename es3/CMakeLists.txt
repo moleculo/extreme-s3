@@ -25,7 +25,6 @@ SET(es3_INCLUDES
 	scope_guard.h
 	uploader.h
 	sync.h
-	workaround.hpp
 )
 
 SET(Boost_USE_STATIC_LIBS ON)

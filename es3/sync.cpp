@@ -4,13 +4,11 @@
 #include "context.h"
 #include "errors.h"
 #include <set>
-#include <boost/filesystem.hpp>
 #include <iostream>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 using namespace es3;
-using namespace boost::filesystem;
 
 synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &to)
 	: agenda_(agenda), to_(to)
@@ -29,14 +27,16 @@ void synchronizer::process_dir(file_map_t *remote_list,
 	const std::string &remote_dir, const bf::path &local_dir)
 {
 	assert(remote_dir.at(remote_dir.size()-1)=='/');
+	if(bf::status(local_dir).type()!=bf::directory_file)
+		err(errFatal) << "Directory "<<local_dir<<" can't be accessed";
 
 	file_map_t cur_remote_copy = remote_list ?
 				*remote_list : file_map_t();
 
-	for(directory_iterator iter=directory_iterator(local_dir);
-		iter!=directory_iterator(); ++iter)
+	for(bf::directory_iterator iter=bf::directory_iterator(local_dir);
+		iter!=bf::directory_iterator(); ++iter)
 	{
-		const directory_entry &dent = *iter;
+		const bf::directory_entry &dent = *iter;
 		bf::path cur_local_path=bf::absolute(dent.path());
 		std::string cur_local_filename=cur_local_path.filename().string();
 		std::string cur_remote_path = remote_dir+cur_local_filename;
@@ -45,7 +45,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 					cur_remote_copy, cur_local_filename, remote_file_ptr());
 		cur_remote_copy.erase(cur_local_filename);
 
-		if (dent.status().type()==directory_file)
+		if (dent.status().type()==bf::directory_file)
 		{
 			//Recurse into subdir
 			if (cur_remote_child)
@@ -88,7 +88,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 					agenda_->schedule(task);
 				}
 			}
-		} else if (dent.status().type()==regular_file)
+		} else if (dent.status().type()==bf::regular_file)
 		{
 			//Regular file
 			if (to_->upload_)
@@ -125,7 +125,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 		}
 	}
 
-	if (to_->delete_missing_)
+	if (to_->delete_missing_ || !to_->upload_)
 		process_missing(cur_remote_copy, local_dir);
 }
 
@@ -140,15 +140,16 @@ void synchronizer::process_missing(const file_map_t &cur,
 		if (file->is_dir_)
 		{
 			bf::path new_dir = cur_local_dir / filename;
-			mkdir(new_dir.c_str(), 0644) |
+			mkdir(new_dir.c_str(), 0755) |
 					libc_die2("Failed to create "+new_dir.string());
 			process_missing(file->children_, new_dir);
 		} else
 		{
 			if (to_->upload_)
 			{
-				agenda_->schedule(sync_task_ptr(
-					new remote_file_deleter(to_, file->full_name_)));
+				if (to_->delete_missing_)
+					agenda_->schedule(sync_task_ptr(
+						new remote_file_deleter(to_, file->full_name_)));
 			} else
 			{
 				//Missing local file just means that we need to download it
