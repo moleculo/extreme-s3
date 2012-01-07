@@ -85,6 +85,8 @@ void s3_connection::prepare(const std::string &verb,
 
 	//Set HTTP verb
 	checked(curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, verb.c_str()));
+	//Do not do any automatic decompression
+	checked(curl_easy_setopt(curl_, CURLOPT_ACCEPT_ENCODING , 0));
 
 	if (header_list_)
 	{

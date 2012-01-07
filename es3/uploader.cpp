@@ -153,6 +153,7 @@ public:
 				while(remaining_size>0)
 				{
 					char buf[65536*8];
+					//No overflow is possible since sizeof(buf)<MAX_SIZE_T.
 					size_t chunk=std::min(remaining_size,
 										  uint64_t(sizeof(buf)));
 					size_t res=read(cur_fl.get(), buf, chunk) | libc_die;
@@ -222,7 +223,9 @@ void file_uploader::operator()(agenda_ptr agenda)
 	//Prepare upload
 	header_map_t hmap;
 	hmap["x-amz-meta-compressed"] = do_compress ? "true" : "false";
-	hmap["Content-Type"] = "application/x-binary";
+	//hmap["Content-Type"] = "application/x-binary";
+	if (do_compress)
+		hmap["Content-Encoding"] = "gzip";
 	hmap["x-amz-meta-last-modified"] = int_to_string(mtime);
 	hmap["x-amz-meta-size"] = int_to_string(file_sz);
 	hmap["x-amz-meta-file-mode"] = int_to_string(mode);
@@ -264,7 +267,7 @@ void file_uploader::start_upload(agenda_ptr ag,
 
 	//Now create file pumps
 	size_t num_per_pump = number_of_segments / conn_->max_readers_ + 1;
-	for(int f=0;f<number_of_segments;f+=num_per_pump)
+	for(size_t f=0;f<number_of_segments;f+=num_per_pump)
 	{
 		size_t num_cur = number_of_segments-f;
 		if (num_cur > num_per_pump)
