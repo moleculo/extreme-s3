@@ -90,8 +90,11 @@ void synchronizer::process_dir(file_map_t *remote_list,
 					process_dir(0, cur_remote_path+"/", cur_local_path);
 				} else
 				{
-					sync_task_ptr task(new local_file_deleter(cur_local_path));
-					agenda_->schedule(task);
+					if (delete_missing_)
+					{
+						sync_task_ptr task(new local_file_deleter(cur_local_path));
+						agenda_->schedule(task);
+					}
 				}
 			}
 		} else if (dent.status().type()==bf::regular_file)
@@ -106,8 +109,11 @@ void synchronizer::process_dir(file_map_t *remote_list,
 			{
 				if (!cur_remote_child)
 				{
-					sync_task_ptr task(new local_file_deleter(cur_local_path));
-					agenda_->schedule(task);
+					if (delete_missing_)
+					{
+						sync_task_ptr task(new local_file_deleter(cur_local_path));
+						agenda_->schedule(task);
+					}
 				} else
 				{
 					sync_task_ptr task(new file_downloader(
