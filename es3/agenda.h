@@ -5,6 +5,9 @@
 #include <boost/enable_shared_from_this.hpp>
 #include <condition_variable>
 
+#define MIN_SEGMENT_SIZE (6*1024*1024)
+#define MAX_IN_FLIGHT 200
+
 namespace es3 {
 	class agenda;
 	typedef boost::shared_ptr<agenda> agenda_ptr;

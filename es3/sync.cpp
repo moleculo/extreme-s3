@@ -10,17 +10,20 @@
 
 using namespace es3;
 
-synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &to)
-	: agenda_(agenda), to_(to)
+synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &ctx,
+						   std::string remote, bf::path local, bool do_upload,
+						   bool delete_missing)
+	: agenda_(agenda), ctx_(ctx), remote_(remote), local_(local),
+	  do_upload_(do_upload), delete_missing_(delete_missing)
 {
 }
 
 void synchronizer::create_schedule()
 {
 	//Retrieve the list of remote files
-	s3_connection conn(to_);
-	file_map_t remotes = conn.list_files(to_->remote_root_, "");
-	process_dir(&remotes, to_->remote_root_, to_->local_root_);
+	s3_connection conn(ctx_);
+	file_map_t remotes = conn.list_files(remote_, "");
+	process_dir(&remotes, remote_, local_);
 }
 
 void synchronizer::process_dir(file_map_t *remote_list,
@@ -52,17 +55,17 @@ void synchronizer::process_dir(file_map_t *remote_list,
 			{
 				if (!cur_remote_child->is_dir_)
 				{
-					if (to_->delete_missing_)
+					if (delete_missing_)
 					{
-						if (to_->upload_)
+						if (do_upload_)
 						{
-							sync_task_ptr task(new remote_file_deleter(to_,
+							sync_task_ptr task(new remote_file_deleter(ctx_,
 								 cur_remote_child->full_name_));
 							agenda_->schedule(task);
 							process_dir(0, cur_remote_path+"/", cur_local_path);
 						} else
 						{
-							sync_task_ptr task(new file_downloader(to_,
+							sync_task_ptr task(new file_downloader(ctx_,
 								cur_local_path, cur_remote_path, true));
 							agenda_->schedule(task);
 						}
@@ -78,7 +81,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 						cur_remote_path+"/", cur_local_path);
 			} else
 			{
-				if (to_->upload_)
+				if (do_upload_)
 				{
 					process_dir(0, cur_remote_path+"/", cur_local_path);
 				}
@@ -91,18 +94,18 @@ void synchronizer::process_dir(file_map_t *remote_list,
 		} else if (dent.status().type()==bf::regular_file)
 		{
 			//Regular file
-			if (to_->upload_)
+			if (do_upload_)
 			{
 				if (!cur_remote_child)
 				{
 					sync_task_ptr task(new file_uploader(
-						to_, cur_local_path, cur_remote_path));
+						ctx_, cur_local_path, cur_remote_path));
 					agenda_->schedule(task);
 				}
 				else
 				{
 					sync_task_ptr task(new file_uploader(
-						to_, cur_local_path, cur_remote_path));
+						ctx_, cur_local_path, cur_remote_path));
 					agenda_->schedule(task);
 				}
 			} else
@@ -115,7 +118,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 				else
 				{
 					sync_task_ptr task(new file_downloader(
-						to_, cur_local_path, cur_remote_path));
+						ctx_, cur_local_path, cur_remote_path));
 					agenda_->schedule(task);
 				}
 			}
@@ -125,7 +128,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 		}
 	}
 
-	if (to_->delete_missing_ || !to_->upload_)
+	if (delete_missing_ || !do_upload_)
 		process_missing(cur_remote_copy, local_dir);
 }
 
@@ -140,22 +143,22 @@ void synchronizer::process_missing(const file_map_t &cur,
 		if (file->is_dir_)
 		{
 			bf::path new_dir = cur_local_dir / filename;
-			if (!to_->upload_)
+			if (!do_upload_)
 				mkdir(new_dir.c_str(), 0755) |
 					libc_die2("Failed to create "+new_dir.string());
 			process_missing(file->children_, new_dir);
 		} else
 		{
-			if (to_->upload_)
+			if (do_upload_)
 			{
-				if (to_->delete_missing_)
+				if (delete_missing_)
 					agenda_->schedule(sync_task_ptr(
-						new remote_file_deleter(to_, file->full_name_)));
+						new remote_file_deleter(ctx_, file->full_name_)));
 			} else
 			{
 				//Missing local file just means that we need to download it
 				agenda_->schedule(sync_task_ptr(
-					new file_downloader(to_, cur_local_dir / filename,
+					new file_downloader(ctx_, cur_local_dir / filename,
 										file->full_name_)));
 			}
 		}

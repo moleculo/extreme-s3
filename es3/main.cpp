@@ -114,15 +114,15 @@ std::vector<po::option> subcommands_parser(stringvec& args,
 
 int main(int argc, char **argv)
 {
-	int verbosity = 0, thread_num = 0;
+	int verbosity = 0;
 	bool quiet=false;
 
+	//Get terminal size (to pretty-print help text)
 	struct winsize w={0};
 	ioctl(0, TIOCGWINSZ, &w);
 	term_width=(w.ws_col==0)? 80 : w.ws_col;
 
 	context_ptr cd(new conn_context());
-	cd->use_ssl_ = false;
 
 	po::options_description generic("Generic options", term_width);
 	generic.add_options()
@@ -132,15 +132,15 @@ int main(int argc, char **argv)
 		("verbosity,v", po::value<int>(&verbosity)->default_value(1),
 			"Verbosity level [0 - the lowest, 9 - the highest]")
 		("quiet,q", "Quiet mode (no progress indicator)")
-		("scratch-dir,r", po::value<std::string>(
-			 &cd->scratch_path_)->default_value("/tmp")->required(),
+		("scratch-dir,r", po::value<bf::path>(&cd->scratch_dir_)
+			->default_value(bf::temp_directory_path())->required(),
 			"Path to the scratch directory")
 	;
 
 	po::options_description access("Access settings", term_width);
 	access.add_options()
 		("access-key,a", po::value<std::string>(
-				 &cd->api_key_)->required(),
+			 &cd->api_key_)->required(),
 			"Amazon S3 API key")
 		("secret-key,s", po::value<std::string>(
 			 &cd->secret_key)->required(),
@@ -149,26 +149,27 @@ int main(int argc, char **argv)
 			 &cd->use_ssl_)->default_value(false),
 			"Use SSL for communications with the Amazon S3 servers")
 		("compression,m", po::value<bool>(
-			 &compression)->default_value(true)->required(),
+			 &cd->do_compression_)->default_value(true)->required(),
 			"Use GZIP compression")
 	;
 	generic.add(access);
 
+	int thread_num=0, io_threads=0, cpu_threads=0, segment_size=0, segments=0;
 	po::options_description tuning("Tuning", term_width);
 	tuning.add_options()
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
 			"Number of download/upload threads used [0 - autodetect]")
 		("reader-threads,t", po::value<int>(
-			 &cd->max_readers_)->default_value(0),
+			 &io_threads)->default_value(0),
 			"Number of filesystem reader/writer threads [0 - autodetect]")
 		("compressor-threads,o", po::value<int>(
-			 &cd->max_compressors_)->default_value(0),
+			 &cpu_threads)->default_value(0),
 			"Number of compressor threads [0 - autodetect]")
 		("segment-size,g", po::value<int>(
-		 &cd->segment_size_)->default_value(0),
-		"Segment size in bytes [0 - autodetect, 6291456 - minimum]")
+			&segment_size)->default_value(0),
+			"Segment size in bytes [0 - autodetect, 6291456 - minimum]")
 		("segments-in-flight,f", po::value<int>(
-			 &cd->max_in_flight_)->default_value(0),
+			 &segments)->default_value(0),
 			"Number of segments in-flight [0 - autodetect]")
 	;
 	generic.add(tuning);
@@ -259,20 +260,24 @@ int main(int argc, char **argv)
 				  << " is not present." << std::endl;
 		return 1;
 	}
-	cd->validate();
 
 	logger::set_verbosity(verbosity);
 	curl_global_init(CURL_GLOBAL_ALL);
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
-	if (thread_num==0)
-		thread_num=sysconf(_SC_NPROCESSORS_ONLN)+1;
-	//This is done to avoid deadlocks if readers grab all the in-flight
-	//segments. We have to have at least one thread to be able to drain
-	//the upload queue.
-	if(thread_num<=(cd->max_compressors_+cd->max_readers_))
-		thread_num = cd->max_compressors_+cd->max_readers_+2;
-	agenda_ptr ag=agenda::make_new(thread_num, quiet);
+	if (segments>MAX_IN_FLIGHT || segments<=0)
+		segments=MAX_IN_FLIGHT;
+	if (segment_size<MIN_SEGMENT_SIZE)
+		segment_size=MIN_SEGMENT_SIZE;
+	if (cpu_threads<=0)
+		cpu_threads=sysconf(_SC_NPROCESSORS_ONLN)+2;
+	if (io_threads<=0)
+		io_threads=sysconf(_SC_NPROCESSORS_ONLN)*4;
+	if (thread_num<=0)
+		thread_num=sysconf(_SC_NPROCESSORS_ONLN)*9+8;
+
+	agenda_ptr ag(new agenda(thread_num, cpu_threads, io_threads, quiet,
+							 segment_size, segments));
 
 	return subcommands_map[cur_subcommand](cd, cur_sub_params, ag, false);
 }

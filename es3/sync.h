@@ -11,9 +11,15 @@ namespace es3 {
 	class synchronizer
 	{
 		agenda_ptr agenda_;
-		context_ptr to_;
+		context_ptr ctx_;
+		std::string remote_;
+		bf::path local_;
+		bool do_upload_;
+		bool delete_missing_;
 	public:
-		synchronizer(agenda_ptr agenda, const context_ptr &to);
+		synchronizer(agenda_ptr agenda, const context_ptr &ctx,
+					 std::string remote, bf::path local,
+					 bool do_upload, bool delete_missing);
 		void create_schedule();
 
 	private:
