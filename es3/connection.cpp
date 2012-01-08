@@ -288,7 +288,9 @@ void s3_connection::deconstruct_file(file_map_t &res,
 			ptr->name_ = component;
 			ptr->full_name_ = cur_parent?
 						(cur_parent->full_name_+"/"+component) :
-						(conn_data_->remote_root_+component);
+						"/" + component;
+//						(conn_data_->remote_root_+component);
+			//TODO: ??
 			ptr->parent_ = cur_parent;
 			(*cur_pos)[component] = ptr;
 		}
@@ -303,7 +305,8 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	remote_file_ptr fl(new remote_file());
 	fl->is_dir_ = false;
 	fl->name_ = cur_name;
-	fl->full_name_ = conn_data_->remote_root_+name;
+	fl->full_name_ = name; //conn_data_->remote_root_+name;
+	//TODO: ??
 	fl->size_ = atoll(size.c_str());
 	fl->parent_ = cur_parent;
 	if (cur_pos->find(cur_name)!=cur_pos->end())

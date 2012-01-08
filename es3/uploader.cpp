@@ -100,20 +100,12 @@ public:
 	{
 	}
 
-	virtual std::string get_class() const
-	{
-		return "pump"+int_to_string(get_class_limit());
-	}
-
-	virtual size_t get_class_limit() const
-	{
-		return content_->conn_->max_readers_;
-	}
+	virtual task_type_e get_class() const { return taskIOBound; }
 
 	virtual void operator()(agenda_ptr agenda)
 	{
-		context_ptr ctx = content_->conn_;
-		uint64_t start_offset = ctx->segment_size_*cur_segment_;
+		size_t segment_size=agenda->segment_size();
+		uint64_t start_offset = segment_size*cur_segment_;
 
 		//First, skip to our piece
 		uint64_t skipped_so_far=0, offset_within_=0;
@@ -134,8 +126,8 @@ public:
 		//Now read data!!!
 		for(int f=0;f<number_of_segments_;++f)
 		{
-			segment_ptr seg = ctx->get_segment();
-			seg->data_.resize(ctx->segment_size_, 0);
+			segment_ptr seg = agenda->get_segment();
+			seg->data_.resize(segment_size, 0);
 
 			uint64_t segment_read_so_far=0;
 			while(segment_read_so_far<seg->data_.size())
@@ -148,7 +140,7 @@ public:
 				uint64_t cur_piece_size=files_->sizes_.at(cur_piece);
 
 				uint64_t remaining_size =
-						std::min(ctx->segment_size_-segment_read_so_far,
+						std::min(segment_size-segment_read_so_far,
 								 cur_piece_size-offset_within_);
 				while(remaining_size>0)
 				{
@@ -178,11 +170,11 @@ public:
 						offset_within_=0;
 					} else
 					{
-						assert(segment_read_so_far==ctx->segment_size_);
+						assert(segment_read_so_far==segment_size);
 					}
 				}
 			}
-			assert(segment_read_so_far==ctx->segment_size_
+			assert(segment_read_so_far==segment_size
 				   || f==number_of_segments_-1);
 
 			sync_task_ptr task(new part_upload_task(cur_segment_+f,
@@ -257,8 +249,9 @@ void file_uploader::start_upload(agenda_ptr ag,
 	for(int f=0;f<files->sizes_.size();++f)
 		size+=files->sizes_.at(f);
 
-	size_t number_of_segments = safe_cast<size_t>(size/conn_->segment_size_ +
-			((size%conn_->segment_size_)==0 ? 0:1));
+	size_t segment_size = ag->segment_size();
+	size_t number_of_segments = safe_cast<size_t>(size/segment_size +
+			((size%segment_size)==0 ? 0:1));
 	if (number_of_segments>MAX_PART_NUM)
 		err(errFatal) << "File "<<remote_ <<" is too big";
 
@@ -266,7 +259,8 @@ void file_uploader::start_upload(agenda_ptr ag,
 	content->etags_.resize(number_of_segments);
 
 	//Now create file pumps
-	size_t num_per_pump = number_of_segments / conn_->max_readers_ + 1;
+	size_t num_per_pump = number_of_segments /
+			ag->get_capability(taskIOBound) + 1;
 	for(size_t f=0;f<number_of_segments;f+=num_per_pump)
 	{
 		size_t num_cur = number_of_segments-f;

@@ -21,14 +21,7 @@ namespace es3
 		compressor_ptr parent_;
 		uint64_t block_num_, offset_, size_, block_total_;
 
-		virtual std::string get_class() const
-		{
-			return "compression"+int_to_string(get_class_limit());
-		}
-		virtual size_t get_class_limit() const
-		{
-			return parent_->context_->max_compressors_;
-		}
+		virtual task_type_e get_class() const { return taskCPUBound; }
 
 		virtual void operator()(agenda_ptr agenda)
 		{
@@ -47,7 +40,7 @@ namespace es3
 								+" in "+parent_->path_.string());
 
 			//Generate the temp name
-			bf::path tmp_nm = bf::path(parent_->context_->scratch_path_) /
+			bf::path tmp_nm = bf::path(parent_->context_->scratch_dir_) /
 					bf::unique_path("scratchy-%%%%-%%%%-%%%%-%%%%");
 			handle_t tmp_desc(open(tmp_nm.c_str(), O_RDWR|O_CREAT, 0600)
 							  | libc_die2("Failed to create temp file: "
@@ -126,8 +119,8 @@ void file_compressor::operator()(agenda_ptr agenda)
 	uint64_t estimate_num_blocks = file_sz / MINIMAL_BLOCK;
 	assert(estimate_num_blocks>0);
 
-	if (estimate_num_blocks> context_->max_compressors_)
-		estimate_num_blocks = context_->max_compressors_;
+	if (estimate_num_blocks> agenda->get_capability(taskCPUBound))
+		estimate_num_blocks = agenda->get_capability(taskCPUBound);
 	uint64_t block_sz = file_sz / estimate_num_blocks;
 	assert(block_sz>0);
 	uint64_t num_blocks = file_sz / block_sz + ((file_sz%block_sz)==0?0:1);
@@ -221,16 +214,6 @@ void file_decompressor::operator()(agenda_ptr agenda)
 			| libc_die2("Failed to set mode on "+result_.string());
 	rename(temp_out_name.c_str(), result_.c_str())
 			| libc_die2("Failed to replace "+result_.string());
-}
-
-std::string file_decompressor::get_class() const
-{
-	return "decompression"+int_to_string(get_class_limit());
-}
-
-size_t file_decompressor::get_class_limit() const
-{
-	return context_->max_compressors_;
 }
 
 bool es3::should_compress(const bf::path &p, uint64_t sz)

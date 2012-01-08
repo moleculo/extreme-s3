@@ -25,9 +25,6 @@ int do_rsync(context_ptr context, const stringvec& params,
 
 	po::options_description sync("Sync options", term_width);
 	sync.add_options()
-		("compression,C", po::value<bool>(
-			 &compression)->default_value(true)->required(),
-			"Use GZIP compression")
 		("delete-missing,D", po::value<bool>(
 			 &delete_missing)->default_value(false),
 			"Delete missing files from the sync destination")
@@ -151,21 +148,28 @@ int main(int argc, char **argv)
 		("use-ssl,l", po::value<bool>(
 			 &cd->use_ssl_)->default_value(false),
 			"Use SSL for communications with the Amazon S3 servers")
+		("compression,m", po::value<bool>(
+			 &compression)->default_value(true)->required(),
+			"Use GZIP compression")
 	;
 	generic.add(access);
 
 	po::options_description tuning("Tuning", term_width);
 	tuning.add_options()
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
-			"Number of threads used [0 - autodetect]")
-		("segment-size", po::value<int>(&cd->segment_size_)->default_value(0),
-			"Segment size in bytes [0 - autodetect, 6291456 - minimum]")
-		("segments-in-flight", po::value<int>(&cd->max_in_flight_)->default_value(0),
-			"Number of segments in-flight [0 - autodetect]")
-		("reader-threads", po::value<int>(&cd->max_readers_)->default_value(0),
+			"Number of download/upload threads used [0 - autodetect]")
+		("reader-threads,t", po::value<int>(
+			 &cd->max_readers_)->default_value(0),
 			"Number of filesystem reader/writer threads [0 - autodetect]")
-		("compressor-threads", po::value<int>(&cd->max_compressors_)->default_value(0),
+		("compressor-threads,o", po::value<int>(
+			 &cd->max_compressors_)->default_value(0),
 			"Number of compressor threads [0 - autodetect]")
+		("segment-size,g", po::value<int>(
+		 &cd->segment_size_)->default_value(0),
+		"Segment size in bytes [0 - autodetect, 6291456 - minimum]")
+		("segments-in-flight,f", po::value<int>(
+			 &cd->max_in_flight_)->default_value(0),
+			"Number of segments in-flight [0 - autodetect]")
 	;
 	generic.add(tuning);
 

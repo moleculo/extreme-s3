@@ -91,8 +91,7 @@ namespace es3 {
 				unlink(source_.c_str());
 		}
 
-		virtual std::string get_class() const;
-		virtual size_t get_class_limit() const;
+		virtual task_type_e get_class() const { return taskCPUBound; }
 		virtual void operator()(agenda_ptr agenda);
 	};
 

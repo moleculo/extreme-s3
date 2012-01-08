@@ -54,19 +54,12 @@ public:
 	{
 	}
 
-	virtual std::string get_class() const
-	{
-		return "writer"+int_to_string(get_class_limit());
-	}
-	virtual size_t get_class_limit() const
-	{
-		return content_->ctx_->max_readers_;
-	}
+	virtual task_type_e get_class() const { return taskIOBound; }
 
 	virtual void operator()(agenda_ptr agenda)
 	{
 		context_ptr ctx = content_->ctx_;
-		do_write();
+		do_write(agenda);
 
 		guard_t lock(content_->m_);
 		content_->segments_read_++;
@@ -95,10 +88,10 @@ public:
 		}
 	}
 
-	void do_write()
+	void do_write(agenda_ptr agenda)
 	{
 		context_ptr ctx = content_->ctx_;
-		uint64_t start_offset = ctx->segment_size_*cur_segment_;
+		uint64_t start_offset = agenda->segment_size()*cur_segment_;
 		handle_t fl(open(content_->local_file_.c_str(), O_RDWR) | libc_die);
 		lseek64(fl.get(), start_offset, SEEK_SET) | libc_die;
 
@@ -127,18 +120,18 @@ public:
 
 	virtual void operator()(agenda_ptr agenda)
 	{
-		context_ptr ctx = content_->ctx_;
-		segment_ptr seg=ctx->get_segment();
+		segment_ptr seg=agenda->get_segment();
+		size_t segment_size=agenda->segment_size();
 
-		uint64_t start_offset = ctx->segment_size_*cur_segment_;
+		uint64_t start_offset = segment_size*cur_segment_;
 		uint64_t size = content_->remote_size_-start_offset;
-		if (size>ctx->segment_size_)
-			size=ctx->segment_size_;
+		if (size>segment_size)
+			size=segment_size;
 
 		VLOG(2) << "Downloading part " << cur_segment_ << " out of "
 				<< content_->num_segments_ << " of " << content_->remote_path_;
 
-		s3_connection conn(ctx);
+		s3_connection conn(content_->ctx_);
 		seg->data_.resize(safe_cast<size_t>(size));
 		conn.download_data(content_->remote_path_, start_offset,
 						   &seg->data_[0], safe_cast<size_t>(size));
@@ -179,8 +172,9 @@ void file_downloader::operator()(agenda_ptr agenda)
 	download_content_ptr dc(new download_content());
 	dc->ctx_=conn_;
 
-	size_t seg_num = safe_cast<size_t>(mod.remote_size_/conn_->segment_size_ +
-				((mod.remote_size_%conn_->segment_size_)==0?0:1));
+	size_t seg_size = agenda->segment_size();
+	size_t seg_num = safe_cast<size_t>(mod.remote_size_/seg_size +
+				((mod.remote_size_%seg_size)==0?0:1));
 	if (seg_num>MAX_SEGMENTS)
 		err(errFatal) << "Segment size is too small for " << remote_;
 
@@ -199,7 +193,7 @@ void file_downloader::operator()(agenda_ptr agenda)
 
 	if (mod.compressed)
 	{
-		path tmp_nm = bf::path(conn_->scratch_path_) /
+		path tmp_nm = conn_->scratch_dir_ /
 				bf::unique_path("scratchy-%%%%-%%%%-%%%%-%%%%-dl");
 		dc->local_file_=tmp_nm.c_str();
 	} else
