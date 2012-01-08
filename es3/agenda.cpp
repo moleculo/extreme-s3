@@ -8,14 +8,15 @@
 
 using namespace es3;
 
-agenda_ptr agenda::make_new(size_t thread_num)
+agenda_ptr agenda::make_new(size_t thread_num, bool quiet)
 {
-	return agenda_ptr(new agenda(thread_num));
+	return agenda_ptr(new agenda(thread_num, quiet));
 }
 
-agenda::agenda(size_t thread_num) : num_working_(),
+agenda::agenda(size_t thread_num, bool quiet) : num_working_(),
 	num_submitted_(), num_done_(), num_failed_(),
-	thread_num_(thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+1)
+	thread_num_(thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+1),
+	quiet_(quiet)
 {
 }
 
@@ -136,13 +137,13 @@ void agenda::schedule(sync_task_ptr task)
 	num_submitted_++;
 }
 
-size_t agenda::run(bool visual)
+size_t agenda::run()
 {
 	std::vector<std::thread> threads;
 	for(int f=0;f<thread_num_;++f)
 		threads.push_back(std::thread(task_executor(shared_from_this())));
 
-	if (visual)
+	if (!quiet_)
 	{
 		threads.push_back(std::thread(boost::bind(&agenda::draw_progress,
 												  this)));

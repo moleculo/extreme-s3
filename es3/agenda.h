@@ -25,8 +25,9 @@ namespace es3 {
 
 	class agenda : public boost::enable_shared_from_this<agenda>
 	{
-		agenda(size_t thread_num);
+		agenda(size_t thread_num, bool quiet);
 		const size_t thread_num_;
+		const bool quiet_;
 
 		std::mutex m_; //This mutex protects the following data {
 		std::condition_variable condition_;
@@ -40,11 +41,12 @@ namespace es3 {
 		std::map<std::string, std::pair<uint64_t, uint64_t> > progress_;
 		//}
 	public:
-		static boost::shared_ptr<agenda> make_new(size_t thread_num);
+		static boost::shared_ptr<agenda> make_new(size_t thread_num,
+												  bool quiet);
 
 		int advise_capability() const { return thread_num_;}
 		void schedule(sync_task_ptr task);
-		size_t run(bool visual);
+		size_t run();
 
 		void draw_progress();
 		void draw_progress_widget();

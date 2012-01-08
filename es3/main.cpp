@@ -12,9 +12,77 @@
 using namespace es3;
 #include <curl/curl.h>
 
+static int term_width = 80;
+
 namespace po = boost::program_options;
 typedef std::vector<std::string> stringvec;
 
+int do_rsync(context_ptr context, const stringvec& params,
+			 agenda_ptr ag, bool help)
+{
+	bool compression=false;
+	bool delete_missing=false;
+
+	po::options_description sync("Sync options", term_width);
+	sync.add_options()
+		("compression,C", po::value<bool>(
+			 &compression)->default_value(true)->required(),
+			"Use GZIP compression")
+		("delete-missing,D", po::value<bool>(
+			 &delete_missing)->default_value(false),
+			"Delete missing files from the sync destination")
+	;
+
+	if (help)
+	{
+		std::cout << "Sync syntax: es3 sync [OPTIONS] <SOURCE> <DESTINATION>\n"
+				  << "where <SOURCE> and <DESTINATION> are either:\n"
+				  << "\t - Local directory\n"
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
+				  << std::endl << std::endl;
+		std::cout << sync;
+		return 0;
+	}
+
+	//	("do-upload,u", po::value<bool>(&cd->upload_)->default_value(true),
+	//		"Upload local changes to the server")
+	//	("sync-dir,i", po::value<bf::path>(
+	//		 &cd->local_root_)->required(),
+	//		"Local directory")
+	//	("bucket-name,o", po::value<std::string>(
+	//		 &cd->bucket_)->required(),
+	//		"Name of Amazon S3 bucket")
+	//	("remote-path,p", po::value<std::string>(
+	//		 &cd->remote_root_)->default_value("/")->required(),
+	//		"Path in the Amazon S3 bucket")
+	//	("zone-name,z", po::value<std::string>(
+	//		 &cd->zone_)->default_value("s3")->required(),
+	//		"Name of Amazon S3 zone")
+
+//	try
+//	{
+//		if (cd->zone_=="s3")
+//		{
+//			s3_connection conn(cd);
+//			std::string region=conn.find_region();
+//			if (!region.empty())
+//				cd->zone_="s3-"+region;
+//		}
+
+//		synchronizer sync(ag, cd);
+//		sync.create_schedule();
+//		size_t failed_num=ag->run();
+
+//		return failed_num==0 ? 0 : 4;
+//	} catch(const std::exception &ex)
+//	{
+//		VLOG(0) << "An error has been encountered during processing. "
+//				<< ex.what();
+//		return 5;
+//	}
+
+	return 0;
+}
 
 std::vector<po::option> subcommands_parser(stringvec& args,
 										   const stringvec& subcommands)
@@ -54,7 +122,7 @@ int main(int argc, char **argv)
 
 	struct winsize w={0};
 	ioctl(0, TIOCGWINSZ, &w);
-	int term_width=(w.ws_col==0)? 80 : w.ws_col;
+	term_width=(w.ws_col==0)? 80 : w.ws_col;
 
 	context_ptr cd(new conn_context());
 	cd->use_ssl_ = false;
@@ -101,40 +169,28 @@ int main(int argc, char **argv)
 	;
 	generic.add(tuning);
 
-//	("do-compression", po::value<bool>(
-//		 &cd->do_compression_)->default_value(true)->required(),
-//		"Compress files during upload")
-//	("do-upload,u", po::value<bool>(&cd->upload_)->default_value(true),
-//		"Upload local changes to the server")
-//	("delete-missing,d", po::value<bool>(
-//		 &cd->delete_missing_)->default_value(false),
-//		"Delete missing files from the remote side")
-//	("sync-dir,i", po::value<bf::path>(
-//		 &cd->local_root_)->required(),
-//		"Local directory")
-//	("bucket-name,o", po::value<std::string>(
-//		 &cd->bucket_)->required(),
-//		"Name of Amazon S3 bucket")
-//	("remote-path,p", po::value<std::string>(
-//		 &cd->remote_root_)->default_value("/")->required(),
-//		"Path in the Amazon S3 bucket")
-//	("zone-name,z", po::value<std::string>(
-//		 &cd->zone_)->default_value("s3")->required(),
-//		"Name of Amazon S3 zone")
 	po::options_description sub_data("Subcommands");
 	sub_data.add_options()
 		("subcommand", po::value<std::string>())
 		("subcommand_params", po::value<stringvec>()->multitoken());
 
+	std::map< std::string,
+			std::function<int(context_ptr, const stringvec&, agenda_ptr, bool)> >
+			subcommands_map;
+	subcommands_map["sync"] = boost::bind(&do_rsync, _1, _2, _3, _4);
+
+	//	subcommands.push_back("ls");
+	//	subcommands.push_back("cp");
+	//	subcommands.push_back("rm");
+	//	subcommands.push_back("mb");
+	//	subcommands.push_back("rb");
+
 	stringvec subcommands;
-	subcommands.push_back("sync");
-	subcommands.push_back("ls");
-	subcommands.push_back("cp");
-	subcommands.push_back("rm");
-	subcommands.push_back("mb");
-	subcommands.push_back("rb");
+	for(auto iter=subcommands_map.begin();iter!=subcommands_map.end();++iter)
+		subcommands.push_back(iter->first);
 
 	std::string cur_subcommand;
+	stringvec cur_sub_params;
 
 	po::variables_map vm;
 	try
@@ -149,6 +205,8 @@ int main(int argc, char **argv)
 
 		cur_subcommand=vm.count("subcommand")==0?
 					"" : vm["subcommand"].as<std::string>();
+		cur_sub_params=vm.count("subcommand_params")==0?
+					stringvec() : vm["subcommand_params"].as<stringvec>();
 
 		if (argc < 2 || vm.count("help"))
 		{
@@ -161,7 +219,9 @@ int main(int argc, char **argv)
 				std::cout << "\nUse --help <command_name> to get more info\n";
 			} else
 			{
-				std::cout << "Extreme S3 - fast S3 client\n" << generic;
+				std::cout << "Extreme S3 - fast S3 client\n";
+				subcommands_map[cur_subcommand](cd, cur_sub_params,
+												agenda_ptr(), true);
 			}
 			return 1;
 		}
@@ -198,39 +258,17 @@ int main(int argc, char **argv)
 	cd->validate();
 
 	logger::set_verbosity(verbosity);
-
 	curl_global_init(CURL_GLOBAL_ALL);
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
-	try
-	{
-		if (cd->zone_=="s3")
-		{
-			s3_connection conn(cd);
-			std::string region=conn.find_region();
-			if (!region.empty())
-				cd->zone_="s3-"+region;
-		}
+	if (thread_num==0)
+		thread_num=sysconf(_SC_NPROCESSORS_ONLN)+1;
+	//This is done to avoid deadlocks if readers grab all the in-flight
+	//segments. We have to have at least one thread to be able to drain
+	//the upload queue.
+	if(thread_num<=(cd->max_compressors_+cd->max_readers_))
+		thread_num = cd->max_compressors_+cd->max_readers_+2;
+	agenda_ptr ag=agenda::make_new(thread_num, quiet);
 
-		if (thread_num==0)
-			thread_num=sysconf(_SC_NPROCESSORS_ONLN)+1;
-
-		//This is done to avoid deadlocks if readers grab all the in-flight
-		//segments. We have to have at least one thread to be able to drain
-		//the upload queue.
-		if(thread_num<=(cd->max_compressors_+cd->max_readers_))
-			thread_num = cd->max_compressors_+cd->max_readers_+2;
-
-		agenda_ptr ag=agenda::make_new(thread_num);
-		synchronizer sync(ag, cd);
-		sync.create_schedule();
-		size_t failed_num=ag->run(!quiet);
-
-		return failed_num==0 ? 0 : 4;
-	} catch(const std::exception &ex)
-	{
-		VLOG(0) << "An error has been encountered during processing. "
-				<< ex.what();
-		return 5;
-	}
+	return subcommands_map[cur_subcommand](cd, cur_sub_params, ag, false);
 }
