@@ -22,7 +22,11 @@ void synchronizer::create_schedule()
 {
 	//Retrieve the list of remote files
 	s3_connection conn(ctx_);
-	file_map_t remotes = conn.list_files(remote_, "");
+
+	std::string prefix = remote_;
+	if (!prefix.empty() && prefix.at(0)=='/')
+		prefix=prefix.substr(1);
+	file_map_t remotes = conn.list_files(prefix);
 	process_dir(&remotes, remote_, local_);
 }
 
@@ -84,8 +88,7 @@ void synchronizer::process_dir(file_map_t *remote_list,
 				if (do_upload_)
 				{
 					process_dir(0, cur_remote_path+"/", cur_local_path);
-				}
-				else
+				} else
 				{
 					sync_task_ptr task(new local_file_deleter(cur_local_path));
 					agenda_->schedule(task);
@@ -96,26 +99,16 @@ void synchronizer::process_dir(file_map_t *remote_list,
 			//Regular file
 			if (do_upload_)
 			{
-				if (!cur_remote_child)
-				{
-					sync_task_ptr task(new file_uploader(
-						ctx_, cur_local_path, cur_remote_path));
-					agenda_->schedule(task);
-				}
-				else
-				{
-					sync_task_ptr task(new file_uploader(
-						ctx_, cur_local_path, cur_remote_path));
-					agenda_->schedule(task);
-				}
+				sync_task_ptr task(new file_uploader(
+					ctx_, cur_local_path, cur_remote_path));
+				agenda_->schedule(task);
 			} else
 			{
 				if (!cur_remote_child)
 				{
 					sync_task_ptr task(new local_file_deleter(cur_local_path));
 					agenda_->schedule(task);
-				}
-				else
+				} else
 				{
 					sync_task_ptr task(new file_downloader(
 						ctx_, cur_local_path, cur_remote_path));

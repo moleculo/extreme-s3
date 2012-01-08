@@ -36,6 +36,12 @@ namespace es3 {
 		bool compressed;
 	};
 
+	struct s3_path
+	{
+		std::string zone_, bucket_, path_;
+	};
+	ES3LIB_PUBLIC s3_path parse_path(const std::string &url);
+
 	class s3_connection
 	{
 		CURL *curl_;
@@ -50,8 +56,7 @@ namespace es3 {
 							   const std::string &path,
 							   const std::string &args="",
 							   const header_map_t &opts=header_map_t());
-		file_map_t list_files(const std::string &path,
-							  const std::string &prefix);
+		file_map_t list_files(const std::string &prefix);
 		std::string upload_data(const std::string &path,
 								const char *data, size_t size,
 								const header_map_t& opts=header_map_t());

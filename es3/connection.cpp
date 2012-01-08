@@ -16,6 +16,32 @@ static std::string escape(const std::string &str)
 	return std::string(res);
 }
 
+s3_path es3::parse_path(const std::string &url)
+{
+	s3_path res;
+	if (url.find("s3://")!=0)
+		throw std::bad_exception();
+
+	std::string bucket_and_path=url.substr(strlen("s3://"));
+	size_t path_pos = bucket_and_path.find('/');
+	if (path_pos==0)
+		err(errFatal) << "Malformed S3 URL - no bucket name: " << url;
+
+	if (path_pos!=-1)
+	{
+		res.bucket_=bucket_and_path.substr(0, path_pos);
+		res.path_=bucket_and_path.substr(path_pos);
+		if (*res.path_.rbegin()!='/')
+			res.path_+='/';
+	} else
+	{
+		res.bucket_=bucket_and_path;
+		res.path_="/";
+	}
+
+	return res;
+}
+
 s3_connection::s3_connection(const context_ptr &conn_data)
 	: curl_(curl_easy_init()), conn_data_(conn_data), header_list_()
 {
@@ -208,8 +234,7 @@ std::string s3_connection::read_fully(const std::string &verb,
 	return res;
 }
 
-file_map_t s3_connection::list_files(const std::string &path,
-	const std::string &prefix)
+file_map_t s3_connection::list_files(const std::string &prefix)
 {
 	file_map_t res;
 	std::string marker;
@@ -220,12 +245,12 @@ file_map_t s3_connection::list_files(const std::string &path,
 			args="?marker="+escape(marker);
 		else
 			args="?prefix="+escape(prefix)+"&marker="+escape(marker);
-		std::string list=read_fully("GET", path, args);
+		std::string list=read_fully("GET", "", args);
 
 		TiXmlDocument doc;
 		doc.Parse(list.c_str());
 		if (doc.Error())
-			err(errWarn) << "Failed to get file listing from " << path;
+			err(errWarn) << "Failed to get file listing from /" << prefix;
 		TiXmlHandle docHandle(&doc);
 
 		TiXmlNode *node=docHandle.FirstChild("ListBucketResult")
@@ -289,8 +314,6 @@ void s3_connection::deconstruct_file(file_map_t &res,
 			ptr->full_name_ = cur_parent?
 						(cur_parent->full_name_+"/"+component) :
 						"/" + component;
-//						(conn_data_->remote_root_+component);
-			//TODO: ??
 			ptr->parent_ = cur_parent;
 			(*cur_pos)[component] = ptr;
 		}
@@ -305,8 +328,9 @@ void s3_connection::deconstruct_file(file_map_t &res,
 	remote_file_ptr fl(new remote_file());
 	fl->is_dir_ = false;
 	fl->name_ = cur_name;
-	fl->full_name_ = name; //conn_data_->remote_root_+name;
-	//TODO: ??
+	fl->full_name_ = name;
+	if (fl->full_name_.at(0)!='/')
+		fl->full_name_="/"+fl->full_name_;
 	fl->size_ = atoll(size.c_str());
 	fl->parent_ = cur_parent;
 	if (cur_pos->find(cur_name)!=cur_pos->end())

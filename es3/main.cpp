@@ -20,11 +20,9 @@ typedef std::vector<std::string> stringvec;
 int do_rsync(context_ptr context, const stringvec& params,
 			 agenda_ptr ag, bool help)
 {
-	bool compression=false;
 	bool delete_missing=false;
-
-	po::options_description sync("Sync options", term_width);
-	sync.add_options()
+	po::options_description opts("Sync options", term_width);
+	opts.add_options()
 		("delete-missing,D", po::value<bool>(
 			 &delete_missing)->default_value(false),
 			"Delete missing files from the sync destination")
@@ -37,48 +35,69 @@ int do_rsync(context_ptr context, const stringvec& params,
 				  << "\t - Local directory\n"
 				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
 				  << std::endl << std::endl;
-		std::cout << sync;
+		std::cout << opts;
 		return 0;
 	}
 
-	//	("do-upload,u", po::value<bool>(&cd->upload_)->default_value(true),
-	//		"Upload local changes to the server")
-	//	("sync-dir,i", po::value<bf::path>(
-	//		 &cd->local_root_)->required(),
-	//		"Local directory")
-	//	("bucket-name,o", po::value<std::string>(
-	//		 &cd->bucket_)->required(),
-	//		"Name of Amazon S3 bucket")
-	//	("remote-path,p", po::value<std::string>(
-	//		 &cd->remote_root_)->default_value("/")->required(),
-	//		"Path in the Amazon S3 bucket")
-	//	("zone-name,z", po::value<std::string>(
-	//		 &cd->zone_)->default_value("s3")->required(),
-	//		"Name of Amazon S3 zone")
+	po::positional_options_description pos;
+	pos.add("<SOURCE>", 1);
+	pos.add("<DESTINATION>", 1);
 
-//	try
-//	{
-//		if (cd->zone_=="s3")
-//		{
-//			s3_connection conn(cd);
-//			std::string region=conn.find_region();
-//			if (!region.empty())
-//				cd->zone_="s3-"+region;
-//		}
+	std::string src, tgt;
+	opts.add_options()
+		("<SOURCE>", po::value<std::string>(&src)->required())
+		("<DESTINATION>", po::value<std::string>(&tgt)->required())
+	;
 
-//		synchronizer sync(ag, cd);
-//		sync.create_schedule();
-//		size_t failed_num=ag->run();
+	try
+	{
+		po::variables_map vm;
+		po::store(po::command_line_parser(params)
+			.options(opts).positional(pos).run(), vm);
+		po::notify(vm);
+	} catch(const boost::program_options::error &err)
+	{
+		std::cerr << "Failed to parse configuration options. Error: "
+				  << err.what() << "\n"
+				  << "Use --help for help\n";
+		return 2;
+	}
 
-//		return failed_num==0 ? 0 : 4;
-//	} catch(const std::exception &ex)
-//	{
-//		VLOG(0) << "An error has been encountered during processing. "
-//				<< ex.what();
-//		return 5;
-//	}
+	s3_path path;
+	std::string local;
+	bool upload = false;
+	if (src.find("s3://")==0)
+	{
+		path = parse_path(src);
+		local = tgt;
+		upload = false;
+	} else if (tgt.find("s3://")==0)
+	{
+		path = parse_path(tgt);
+		local = src;
+		upload = true;
+	} else
+	{
+		std::cerr << "Error: one of <SOURCE> or <DESTINATION> must be an S3 URL.\n";
+		return 2;
+	}
+	if (local.find("s3://")==0)
+	{
+		std::cerr << "Error: one of <SOURCE> or <DESTINATION> must be a local path \n";
+		return 2;
+	}
 
-	return 0;
+	//TODO: de-uglify
+	context->bucket_=path.bucket_;
+	context->zone_="s3";
+	s3_connection conn(context);
+	std::string region=conn.find_region();
+	if (!region.empty())
+		context->zone_="s3-"+region;
+
+	synchronizer sync(ag, context, path.path_, local, upload, delete_missing);
+	sync.create_schedule();
+	return ag->run();
 }
 
 std::vector<po::option> subcommands_parser(stringvec& args,
@@ -236,20 +255,28 @@ int main(int argc, char **argv)
 			std::cout << "No command specified. Use --help for help\n";
 			return 2;
 		}
+	} catch(const boost::program_options::error &err)
+	{
+		std::cerr << "Failed to parse command line. Error: "
+				  << err.what() << std::endl;
+		return 2;
+	}
 
+	try
+	{
 		if (vm.count("config"))
 		{
 			// Parse the file and store the options
 			std::string config_file = vm["config"].as<std::string>();
 			po::store(po::parse_config_file<char>(config_file.c_str(),generic), vm);
 		}
-		quiet = vm.count("quiet");
 	} catch(const boost::program_options::error &err)
 	{
-		std::cerr << "Failed to parse configuration options. Error: "
+		std::cerr << "Failed to parse the configuration file. Error: "
 				  << err.what() << std::endl;
 		return 2;
 	}
+	quiet = vm.count("quiet");
 
 	try
 	{
@@ -279,5 +306,12 @@ int main(int argc, char **argv)
 	agenda_ptr ag(new agenda(thread_num, cpu_threads, io_threads, quiet,
 							 segment_size, segments));
 
-	return subcommands_map[cur_subcommand](cd, cur_sub_params, ag, false);
+	try
+	{
+		return subcommands_map[cur_subcommand](cd, cur_sub_params, ag, false);
+	} catch(const std::exception &ex)
+	{
+		VLOG(0) << "Unexpected error: " << ex.what() << std::endl;
+		return 8;
+	}
 }
