@@ -269,6 +269,20 @@ int main(int argc, char **argv)
 			// Parse the file and store the options
 			std::string config_file = vm["config"].as<std::string>();
 			po::store(po::parse_config_file<char>(config_file.c_str(),generic), vm);
+		} else if (getenv("ES3_CONFIG"))
+		{
+			po::store(po::parse_config_file<char>(
+						  getenv("ES3_CONFIG"),generic), vm);
+		} else
+		{
+			const char *home=getenv("HOME");
+			if (home)
+			{
+				bf::path cfg=bf::path(home) / ".es3cfg";
+				if (bf::exists(cfg))
+					po::store(po::parse_config_file<char>(
+								  cfg.c_str(),generic), vm);
+			}
 		}
 	} catch(const boost::program_options::error &err)
 	{
