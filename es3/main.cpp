@@ -313,9 +313,9 @@ int main(int argc, char **argv)
 	if (cpu_threads<=0)
 		cpu_threads=sysconf(_SC_NPROCESSORS_ONLN)+2;
 	if (io_threads<=0)
-		io_threads=sysconf(_SC_NPROCESSORS_ONLN)*4;
+		io_threads=sysconf(_SC_NPROCESSORS_ONLN)*2;
 	if (thread_num<=0)
-		thread_num=sysconf(_SC_NPROCESSORS_ONLN)*9+8;
+		thread_num=sysconf(_SC_NPROCESSORS_ONLN)*6+8;
 
 	agenda_ptr ag(new agenda(thread_num, cpu_threads, io_threads, quiet,
 							 segment_size, segments));
