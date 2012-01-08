@@ -8,20 +8,36 @@
 
 using namespace es3;
 
-agenda_ptr agenda::make_new(size_t thread_num, bool quiet)
-{
-	return agenda_ptr(new agenda(thread_num, quiet));
-}
-
-agenda::agenda(size_t thread_num, bool quiet) : num_working_(),
-	num_submitted_(), num_done_(), num_failed_(),
-	thread_num_(thread_num>0 ? thread_num : sysconf(_SC_NPROCESSORS_ONLN)+1),
-	quiet_(quiet)
+agenda::agenda(size_t num_unbound, size_t num_cpu_bound, size_t num_io_bound,
+			   bool quiet,
+			   size_t def_segment_size, size_t max_segments_in_flight) :
+	class_limits_ {{taskUnbound, num_unbound},
+				   {taskCPUBound, num_cpu_bound},
+				   {taskIOBound, num_io_bound}},
+	quiet_(quiet), def_segment_size_(def_segment_size),
+	max_segments_in_flight_(max_segments_in_flight),
+	num_working_(), num_submitted_(), num_done_(), num_failed_(),
+	segments_in_flight_()
 {
 }
 
 namespace es3
 {
+	struct segment_deleter
+	{
+		agenda_ptr parent_;
+
+		void operator()(segment *seg)
+		{
+			delete seg;
+
+			u_guard_t guard(parent_->segment_m_);
+			assert(parent_->segments_in_flight_>0);
+			parent_->segments_in_flight_--;
+			parent_->segment_ready_condition_.notify_all();
+		}
+	};
+
 	class task_executor
 	{
 		agenda_ptr agenda_;
@@ -44,14 +60,17 @@ namespace es3
 				{
 					sync_task_ptr cur_task = *iter;
 					//Check if there are too many tasks of this type running
-					size_t cur_num=agenda_->classes_[cur_task->get_class()];
-					if (cur_task->get_class_limit()!=0 &&
-							cur_task->get_class_limit()<=cur_num)
+					task_type_e cur_class=cur_task->get_class();
+					size_t cur_num=agenda_->classes_[cur_class];
+					//Unbound tasks are allowed to exceed their limits and
+					//borrow threads from other classes
+					if (cur_class!=taskUnbound &&
+							agenda_->get_capability(cur_class)<=cur_num)
 						continue;
 
 					agenda_->tasks_.erase(iter);
 					agenda_->num_working_++;
-					agenda_->classes_[cur_task->get_class()]++;
+					agenda_->classes_[cur_class]++;
 					return cur_task;
 				}
 
@@ -65,10 +84,13 @@ namespace es3
 			agenda_->num_working_--;
 			assert(agenda_->classes_[cur_task->get_class()]>0);
 			agenda_->classes_[cur_task->get_class()]--;
-			if (agenda_->tasks_.empty() && agenda_->num_working_==0 ||
-					cur_task->get_class_limit()!=-1)
-				agenda_->condition_.notify_all();
 
+			if (agenda_->tasks_.empty() && agenda_->num_working_==0)
+				agenda_->condition_.notify_all(); //We've finished our tasks!
+			else
+				agenda_->condition_.notify_one();
+
+			//Update stats
 			guard_t lockst(agenda_->stats_m_);
 			agenda_->num_done_++;
 			if (fail)
@@ -126,6 +148,18 @@ namespace es3
 	};
 }
 
+segment_ptr agenda::get_segment()
+{
+	u_guard_t guard(segment_m_);
+	while(segments_in_flight_>max_segments_in_flight_)
+		segment_ready_condition_.wait(guard);
+
+	segment_deleter del {shared_from_this()};
+	segment_ptr res=segment_ptr(new segment(), del);
+	segments_in_flight_++;
+	return res;
+}
+
 void agenda::schedule(sync_task_ptr task)
 {
 	u_guard_t lock(m_);
@@ -140,7 +174,11 @@ void agenda::schedule(sync_task_ptr task)
 size_t agenda::run()
 {
 	std::vector<std::thread> threads;
-	for(int f=0;f<thread_num_;++f)
+	size_t thread_num=0;
+	for(auto iter=class_limits_.begin();iter!=class_limits_.end();++iter)
+		thread_num+=iter->second;
+
+	for(int f=0;f<thread_num;++f)
 		threads.push_back(std::thread(task_executor(shared_from_this())));
 
 	if (!quiet_)
@@ -155,7 +193,7 @@ size_t agenda::run()
 		std::cerr<<std::endl;
 	} else
 	{
-		for(int f=0;f<thread_num_;++f)
+		for(int f=0;f<threads.size();++f)
 			threads.at(f).join();
 	}
 
