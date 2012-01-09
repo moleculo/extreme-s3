@@ -83,6 +83,8 @@ namespace es3 {
 		void draw_progress_widget();
 		void draw_stats();
 		uint64_t get_elapsed_millis() const;
+		std::pair<std::string, std::string> format_si(uint64_t val,
+													  bool per_sec);
 
 		friend class task_executor;
 	};

@@ -226,8 +226,34 @@ void agenda::add_stat_counter(const std::string &stat, uint64_t val)
 	cur_stats_[stat]+=val;
 }
 
+std::pair<std::string, std::string> agenda::format_si(uint64_t val,
+													  bool per_sec)
+{
+	std::pair<std::string, std::string> res;
+	uint64_t denom = 1;
+	if (val<10000)
+	{
+		denom = 1;
+		res.second = "B";
+	} else if (val<2000000)
+	{
+		denom = 1024;
+		res.second = "K";
+	} else
+	{
+		denom = 1024*1024;
+		res.second = "M";
+	}
+	res.first = int_to_string(val/denom);
+	if (val%denom)
+		res.first+="."+int_to_string((val%denom)*100/denom);
+	return res;
+}
+
 void agenda::draw_progress_widget()
 {
+	uint64_t el = get_elapsed_millis();
+
 	std::stringstream str;
 	{
 		guard_t lockst(stats_m_);
@@ -235,6 +261,26 @@ void agenda::draw_progress_widget()
 			<< "]";
 		if (num_failed_)
 			str << " Failed tasks: " << num_failed_;
+
+		uint64_t uploaded = cur_stats_["uploaded"];
+		uint64_t downloaded = cur_stats_["downloaded"];
+		if (downloaded)
+		{
+			auto dl=format_si(downloaded, false);
+			auto ds=format_si(el==0? 0 : (downloaded*1000/el), true);
+			str << "  Downloaded: "
+				<< dl.first << " " << dl.second << ", speed: "
+				<< ds.first << " " << ds.second << "/sec";
+		}
+		if (uploaded)
+		{
+			auto ul=format_si(uploaded, false);
+			auto us=format_si(el==0? 0 : (uploaded*1000/el), true);
+			str << "  Uploaded: "
+				<< ul.first << " " << ul.second << ", speed: "
+				<< us.first << " " << us.second << "/sec";
+		}
+
 		str << "\r";
 	}
 
