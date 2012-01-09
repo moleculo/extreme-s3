@@ -104,6 +104,7 @@ namespace es3
 
 			agenda->add_stat_counter("compressed", consumed);
 			agenda->add_stat_counter("precompressed", size_);
+			agenda->add_stat_counter("read", size_);
 
 			VLOG(2) << "Done compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;

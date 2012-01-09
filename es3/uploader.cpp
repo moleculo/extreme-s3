@@ -93,11 +93,14 @@ class file_pump : public sync_task,
 	upload_content_ptr content_;
 	files_ptr files_;
 	size_t cur_segment_, number_of_segments_;
+	bool update_log_;
 public:
 	file_pump(upload_content_ptr content,
-		files_ptr files, size_t cur_segment, size_t number_of_segments) :
+		files_ptr files, size_t cur_segment, size_t number_of_segments,
+		bool update_log) :
 		content_(content), files_(files),
-		cur_segment_(cur_segment), number_of_segments_(number_of_segments)
+		cur_segment_(cur_segment), number_of_segments_(number_of_segments),
+		update_log_(update_log)
 	{
 	}
 
@@ -178,6 +181,8 @@ public:
 			assert(segment_read_so_far==segment_size
 				   || f==number_of_segments_-1);
 
+			if (update_log_)
+				agenda->add_stat_counter("read", seg->data_.size());
 			sync_task_ptr task(new part_upload_task(cur_segment_+f,
 													content_, seg));
 			agenda->schedule(task);
@@ -268,7 +273,8 @@ void file_uploader::start_upload(agenda_ptr ag,
 		if (num_cur > num_per_pump)
 			num_cur = num_per_pump;
 
-		sync_task_ptr task(new file_pump(content, files, f, num_cur));
+		sync_task_ptr task(new file_pump(content, files, f, num_cur,
+										 !compressed));
 		ag->schedule(task);
 	}
 }
