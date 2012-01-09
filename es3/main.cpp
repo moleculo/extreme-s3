@@ -134,7 +134,6 @@ std::vector<po::option> subcommands_parser(stringvec& args,
 int main(int argc, char **argv)
 {
 	int verbosity = 0;
-	bool quiet=false;
 
 	//Get terminal size (to pretty-print help text)
 	struct winsize w={0};
@@ -150,8 +149,9 @@ int main(int argc, char **argv)
 			"Path to a file that contains configuration settings")
 		("verbosity,v", po::value<int>(&verbosity)->default_value(1),
 			"Verbosity level [0 - the lowest, 9 - the highest]")
-		("quiet,q", "Quiet mode (no progress indicator)")
-		("scratch-dir,r", po::value<bf::path>(&cd->scratch_dir_)
+		("no-progress,q", "Quiet mode (no progress indicator)")
+		("no-stats,t", "Quiet mode (no final stats)")
+		("scratch-dir,i", po::value<bf::path>(&cd->scratch_dir_)
 			->default_value(bf::temp_directory_path())->required(),
 			"Path to the scratch directory")
 	;
@@ -178,7 +178,7 @@ int main(int argc, char **argv)
 	tuning.add_options()
 		("thread-num,n", po::value<int>(&thread_num)->default_value(0),
 			"Number of download/upload threads used [0 - autodetect]")
-		("reader-threads,t", po::value<int>(
+		("reader-threads,r", po::value<int>(
 			 &io_threads)->default_value(0),
 			"Number of filesystem reader/writer threads [0 - autodetect]")
 		("compressor-threads,o", po::value<int>(
@@ -290,7 +290,8 @@ int main(int argc, char **argv)
 				  << err.what() << std::endl;
 		return 2;
 	}
-	quiet = vm.count("quiet");
+	bool no_progress = vm.count("no-progress");
+	bool no_stats = vm.count("no-stats");
 
 	try
 	{
@@ -317,7 +318,8 @@ int main(int argc, char **argv)
 	if (thread_num<=0)
 		thread_num=sysconf(_SC_NPROCESSORS_ONLN)*6+8;
 
-	agenda_ptr ag(new agenda(thread_num, cpu_threads, io_threads, quiet,
+	agenda_ptr ag(new agenda(thread_num, cpu_threads, io_threads,
+							 no_progress, no_stats,
 							 segment_size, segments));
 
 	try

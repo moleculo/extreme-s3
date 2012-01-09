@@ -25,11 +25,11 @@ namespace es3
 
 		virtual void operator()(agenda_ptr agenda)
 		{
-			std::pair<bf::path,uint64_t> res=do_compress();
+			std::pair<bf::path,uint64_t> res=do_compress(agenda);
 			parent_->on_complete(res.first, block_num_, res.second);
 		}
 
-		std::pair<bf::path,uint64_t> do_compress()
+		std::pair<bf::path,uint64_t> do_compress(agenda_ptr agenda)
 		{
 			handle_t src(open(parent_->path_.c_str(), O_RDONLY)
 						 | libc_die2("Failed to open "
@@ -101,6 +101,9 @@ namespace es3
 			consumed += cur_consumed;
 			if (cur_consumed!=0)
 				write(tmp_desc.get(), &buf_out[0], cur_consumed) | libc_die;
+
+			agenda->add_stat_counter("compressed", consumed);
+			agenda->add_stat_counter("precompressed", size_);
 
 			VLOG(2) << "Done compressing part " << block_num_ << " out of " <<
 					   block_total_ << " of " << parent_->path_;
@@ -199,6 +202,7 @@ void file_decompressor::operator()(agenda_ptr agenda)
 			size_t to_write = buf_out.size()-stream.avail_out;
 			written_so_far+=to_write;
 			write(out_fl.get(), &buf_out[0], to_write) | libc_die;
+			agenda->add_stat_counter("decompressed", to_write);
 
 			if (res == Z_STREAM_END)
 			{

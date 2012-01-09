@@ -5,20 +5,22 @@
 #include <sstream>
 #include <unistd.h>
 #include <boost/bind.hpp>
+#include <time.h>
 
 using namespace es3;
 
 agenda::agenda(size_t num_unbound, size_t num_cpu_bound, size_t num_io_bound,
-			   bool quiet,
-			   size_t def_segment_size, size_t max_segments_in_flight) :
+			   bool quiet, bool final_quiet,
+			   size_t segment_size, size_t max_segments_in_flight) :
 	class_limits_ {{taskUnbound, num_unbound},
 				   {taskCPUBound, num_cpu_bound},
 				   {taskIOBound, num_io_bound}},
-	quiet_(quiet), def_segment_size_(def_segment_size),
+	quiet_(quiet), final_quiet_(final_quiet), segment_size_(segment_size),
 	max_segments_in_flight_(max_segments_in_flight),
 	num_working_(), num_submitted_(), num_done_(), num_failed_(),
 	segments_in_flight_()
 {
+	clock_gettime(CLOCK_MONOTONIC, &start_time_) | libc_die2("Can'tget time");
 }
 
 namespace es3
@@ -197,6 +199,9 @@ size_t agenda::run()
 			threads.at(f).join();
 	}
 
+	if (!final_quiet_)
+		draw_stats();
+
 	return num_failed_;
 }
 
@@ -214,6 +219,12 @@ void agenda::draw_progress()
 	}
 }
 
+void agenda::add_stat_counter(const std::string &stat, uint64_t val)
+{
+	guard_t lockst(stats_m_);
+	cur_stats_[stat]+=val;
+}
+
 void agenda::draw_progress_widget()
 {
 	std::stringstream str;
@@ -228,4 +239,9 @@ void agenda::draw_progress_widget()
 
 	std::cerr << str.str(); //No std::endl
 	std::cerr.flush();
+}
+
+void agenda::draw_stats()
+{
+
 }

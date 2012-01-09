@@ -60,6 +60,7 @@ public:
 	{
 		context_ptr ctx = content_->ctx_;
 		do_write(agenda);
+		agenda->add_stat_counter("written", seg_->data_.size());
 
 		guard_t lock(content_->m_);
 		content_->segments_read_++;
@@ -135,6 +136,7 @@ public:
 		seg->data_.resize(safe_cast<size_t>(size));
 		conn.download_data(content_->remote_path_, start_offset,
 						   &seg->data_[0], safe_cast<size_t>(size));
+		agenda->add_stat_counter("downloaded", size);
 
 		VLOG(2) << "Finished downloading part " << cur_segment_ << " out of "
 				<< content_->num_segments_ << " of " << content_->remote_path_;

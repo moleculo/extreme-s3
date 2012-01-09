@@ -64,6 +64,7 @@ public:
 										&segment_->data_[0],
 										segment_->data_.size());
 		assert(!etag.empty());
+		agenda->add_stat_counter("uploaded", segment_->data_.size());
 
 		//Check if the upload is completed
 		guard_t g(content_->lock_);

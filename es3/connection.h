@@ -2,6 +2,7 @@
 #define CONNECTION_H
 
 #include "common.h"
+#include <functional>
 #include <boost/weak_ptr.hpp>
 
 typedef void CURL;
@@ -41,6 +42,8 @@ namespace es3 {
 		std::string zone_, bucket_, path_;
 	};
 	ES3LIB_PUBLIC s3_path parse_path(const std::string &url);
+
+	typedef std::function<void(size_t)> progress_callback_t;
 
 	class s3_connection
 	{

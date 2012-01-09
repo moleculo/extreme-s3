@@ -38,8 +38,9 @@ namespace es3 {
 	class agenda : public boost::enable_shared_from_this<agenda>
 	{
 		const std::map<task_type_e, size_t> class_limits_;
-		const size_t max_segments_in_flight_, def_segment_size_;
-		const bool quiet_;
+		const size_t max_segments_in_flight_, segment_size_;
+		const bool quiet_, final_quiet_;
+		struct timespec start_time_;
 
 		std::mutex m_; //This mutex protects the following data {
 		std::condition_variable condition_;
@@ -56,12 +57,13 @@ namespace es3 {
 		std::mutex segment_m_; //This mutex protects the following data {
 		std::condition_variable segment_ready_condition_;
 		size_t segments_in_flight_;
+		std::map<std::string, uint64_t> cur_stats_;
 		//}
 
 		friend struct segment_deleter;
 	public:
 		agenda(size_t num_unbound, size_t num_cpu_bound,
-			   size_t num_io_bound, bool quiet,
+			   size_t num_io_bound, bool quiet, bool final_quiet,
 			   size_t def_segment_size, size_t max_segments_in_flight_);
 
 		size_t get_capability(task_type_e tp) const
@@ -71,11 +73,13 @@ namespace es3 {
 		void schedule(sync_task_ptr task);
 		size_t run();
 
+		void add_stat_counter(const std::string &stat, uint64_t val);
 		void draw_progress();
 		void draw_progress_widget();
+		void draw_stats();
 
 		segment_ptr get_segment();
-		size_t segment_size() const { return def_segment_size_; }
+		size_t segment_size() const { return segment_size_; }
 
 		friend class task_executor;
 	};
