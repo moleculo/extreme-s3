@@ -94,7 +94,7 @@ void s3_connection::check_for_errors(const std::string &curl_res)
 			err(err_level) << s3_err_code->Value()
 						   << " - " << message->Value();
 	} else
-		err(err_level) << def_error;
+		err(err_level) << "" << def_error;
 }
 
 void s3_connection::prepare(const std::string &verb,

@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <boost/bind.hpp>
 #include <time.h>
+#include <iostream>
 
 using namespace es3;
 
