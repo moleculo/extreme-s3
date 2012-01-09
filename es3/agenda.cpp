@@ -167,7 +167,12 @@ void agenda::schedule(sync_task_ptr task)
 {
 	u_guard_t lock(m_);
 	agenda_ptr ptr = shared_from_this();
-	tasks_.push_back(task);
+
+	auto iter=std::lower_bound(tasks_.begin(), tasks_.end(), task);
+	if (iter!=tasks_.end())
+		tasks_.insert(iter, task);
+	else
+		tasks_.push_back(task);
 	condition_.notify_one();
 
 	guard_t lockst(stats_m_);
@@ -308,7 +313,7 @@ void agenda::draw_stats()
 	{
 		std::string name=f->first;
 		uint64_t val=f->second;
-		if (!val) continue
+		if (!val) continue;
 
 		uint64_t avg = val*1000/el;
 

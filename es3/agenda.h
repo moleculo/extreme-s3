@@ -25,15 +25,31 @@ namespace es3 {
 		taskIOBound,
 	};
 
+	enum task_prio_e
+	{
+		taskLeast,
+		taskNormal,
+		taskUrgent,
+	};
+
 	class sync_task
 	{
 	public:
 		virtual ~sync_task() {}
 
 		virtual task_type_e get_class() const { return taskUnbound; }
+		virtual std::pair<task_prio_e, uint64_t> ordinal() const
+		{
+			return std::make_pair(taskNormal,0);
+		}
 		virtual void operator()(agenda_ptr agenda) = 0;
 	};
 	typedef boost::shared_ptr<sync_task> sync_task_ptr;
+
+	inline bool operator < (sync_task_ptr p1, sync_task_ptr p2)
+	{
+		return p1->ordinal() < p2->ordinal();
+	}
 
 	class agenda : public boost::enable_shared_from_this<agenda>
 	{
