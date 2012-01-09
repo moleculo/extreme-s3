@@ -308,6 +308,7 @@ void agenda::draw_stats()
 	{
 		std::string name=f->first;
 		uint64_t val=f->second;
+		if (!val) continue
 
 		uint64_t avg = val*1000/el;
 
