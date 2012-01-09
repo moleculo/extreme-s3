@@ -20,7 +20,7 @@ agenda::agenda(size_t num_unbound, size_t num_cpu_bound, size_t num_io_bound,
 	num_working_(), num_submitted_(), num_done_(), num_failed_(),
 	segments_in_flight_()
 {
-	clock_gettime(CLOCK_MONOTONIC, &start_time_) | libc_die2("Can'tget time");
+	clock_gettime(CLOCK_MONOTONIC, &start_time_) | libc_die2("Can't get time");
 }
 
 namespace es3
@@ -241,7 +241,31 @@ void agenda::draw_progress_widget()
 	std::cerr.flush();
 }
 
+uint64_t agenda::get_elapsed_millis() const
+{
+	struct timespec cur;
+	clock_gettime(CLOCK_MONOTONIC, &cur) | libc_die2("Can't get time");
+	uint64_t start_tm = uint64_t(start_time_.tv_sec)*1000 +
+			start_time_.tv_nsec/1000000;
+
+	uint64_t cur_tm = uint64_t(cur.tv_sec)*1000+cur.tv_nsec/1000000;
+	return cur_tm-start_tm;
+}
+
 void agenda::draw_stats()
 {
+	uint64_t el = get_elapsed_millis();
 
+	std::cerr << "time taken [sec]: " << el/1000 << "." << el%1000 << std::endl;
+	for(auto f=cur_stats_.begin();f!=cur_stats_.end();++f)
+	{
+		std::string name=f->first;
+		uint64_t val=f->second;
+
+		uint64_t avg = val*1000/el;
+
+		std::cerr << name << " [B]: " << val
+				  << ", average [B/sec]: " << avg
+				  << std::endl;
+	}
 }

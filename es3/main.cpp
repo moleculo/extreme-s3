@@ -20,12 +20,9 @@ typedef std::vector<std::string> stringvec;
 int do_rsync(context_ptr context, const stringvec& params,
 			 agenda_ptr ag, bool help)
 {
-	bool delete_missing=false;
 	po::options_description opts("Sync options", term_width);
 	opts.add_options()
-		("delete-missing,D", po::value<bool>(
-			 &delete_missing)->default_value(false),
-			"Delete missing files from the sync destination")
+		("delete-missing,D", "Delete missing files from the sync destination")
 	;
 
 	if (help)
@@ -49,9 +46,9 @@ int do_rsync(context_ptr context, const stringvec& params,
 		("<DESTINATION>", po::value<std::string>(&tgt)->required())
 	;
 
+	po::variables_map vm;
 	try
 	{
-		po::variables_map vm;
 		po::store(po::command_line_parser(params)
 			.options(opts).positional(pos).run(), vm);
 		po::notify(vm);
@@ -62,6 +59,8 @@ int do_rsync(context_ptr context, const stringvec& params,
 				  << "Use --help for help\n";
 		return 2;
 	}
+
+	bool delete_missing=vm.count("delete-missing");
 
 	s3_path path;
 	std::string local;

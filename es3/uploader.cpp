@@ -156,6 +156,8 @@ public:
 					segment_read_so_far+=res;
 					offset_within_+=res;
 					remaining_size-=res;
+
+					agenda->add_stat_counter("read", res);
 				}
 
 				//We've run out of file piece, switch to the next one

@@ -74,12 +74,15 @@ namespace es3 {
 		size_t run();
 
 		void add_stat_counter(const std::string &stat, uint64_t val);
-		void draw_progress();
-		void draw_progress_widget();
-		void draw_stats();
 
 		segment_ptr get_segment();
 		size_t segment_size() const { return segment_size_; }
+
+	private:
+		void draw_progress();
+		void draw_progress_widget();
+		void draw_stats();
+		uint64_t get_elapsed_millis() const;
 
 		friend class task_executor;
 	};
