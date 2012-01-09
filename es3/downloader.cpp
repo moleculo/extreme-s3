@@ -60,7 +60,6 @@ public:
 	{
 		context_ptr ctx = content_->ctx_;
 		do_write(agenda);
-		agenda->add_stat_counter("written", seg_->data_.size());
 
 		guard_t lock(content_->m_);
 		content_->segments_read_++;
