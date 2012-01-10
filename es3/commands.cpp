@@ -1,6 +1,7 @@
 #include "commands.h"
 #include "connection.h"
 #include "sync.h"
+#include <iostream>
 #include <boost/program_options.hpp>
 
 using namespace es3;
