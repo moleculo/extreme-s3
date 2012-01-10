@@ -225,7 +225,8 @@ bool es3::should_compress(const bf::path &p, uint64_t sz)
 {
 	std::string ext=p.extension().c_str();
 	if (ext==".gz" || ext==".zip" ||
-			ext==".tgz" || ext==".bz2" || ext==".7z")
+			ext==".tgz" || ext==".bz2" || ext==".7z"
+			|| ext==".bam" || ext==".idx")
 		return false;
 
 	if (sz <= COMPRESSION_THRESHOLD)

@@ -16,10 +16,12 @@ namespace es3 {
 		bf::path local_;
 		bool do_upload_;
 		bool delete_missing_;
+		stringvec included_, excluded_;
 	public:
 		synchronizer(agenda_ptr agenda, const context_ptr &ctx,
 					 std::string remote, bf::path local,
-					 bool do_upload, bool delete_missing);
+					 bool do_upload, bool delete_missing,
+					 const stringvec &included, const stringvec &excluded);
 		void create_schedule();
 
 	private:
@@ -29,6 +31,7 @@ namespace es3 {
 
 		void process_missing(const file_map_t &cur,
 							 const bf::path &cur_local_dir);
+		bool check_included(const std::string &name);
 	};
 
 }; //namespace es3

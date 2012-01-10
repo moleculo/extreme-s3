@@ -3,6 +3,7 @@ PROJECT(es3)
 SET(es3_SRCS
 	agenda.cpp
 	base64.cpp
+	commands.cpp
 	common.cpp
 	compressor.cpp
 	connection.cpp
@@ -15,12 +16,14 @@ SET(es3_SRCS
 )
 SET(es3_INCLUDES
 	agenda.h
+	commands.h
 	common.h
 	compressor.h
 	connection.h
 	context.h
 	downloader.h
 	errors.h
+	pattern_match.hpp
 	scope_guard.h
 	uploader.h
 	sync.h

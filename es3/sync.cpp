@@ -7,15 +7,36 @@
 #include <iostream>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include "pattern_match.hpp"
 
 using namespace es3;
 
 synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &ctx,
 						   std::string remote, bf::path local, bool do_upload,
-						   bool delete_missing)
+						   bool delete_missing,
+						   const stringvec &included, const stringvec &excluded)
 	: agenda_(agenda), ctx_(ctx), remote_(remote), local_(local),
-	  do_upload_(do_upload), delete_missing_(delete_missing)
+	  do_upload_(do_upload), delete_missing_(delete_missing),
+	  included_(included), excluded_(excluded)
 {
+}
+
+bool synchronizer::check_included(const std::string &name)
+{
+	if (!excluded_.empty())
+	{
+		for(auto f = excluded_.begin();f!=excluded_.end();++f)
+			if (pattern_match(*f)(name))
+				return false;
+	}
+	if (!included_.empty())
+	{
+		for(auto f = included_.begin();f!=included_.end();++f)
+			if (pattern_match(*f)(name))
+				return true;
+		return false;
+	}
+	return true;
 }
 
 void synchronizer::create_schedule()
@@ -71,7 +92,8 @@ void synchronizer::process_dir(file_map_t *remote_list,
 						{
 							sync_task_ptr task(new file_downloader(ctx_,
 								cur_local_path, cur_remote_path, true));
-							agenda_->schedule(task);
+							if (check_included(cur_local_filename))
+								agenda_->schedule(task);
 						}
 					} else
 					{
@@ -93,7 +115,8 @@ void synchronizer::process_dir(file_map_t *remote_list,
 					if (delete_missing_)
 					{
 						sync_task_ptr task(new local_file_deleter(cur_local_path));
-						agenda_->schedule(task);
+						if (check_included(cur_local_filename))
+							agenda_->schedule(task);
 					}
 				}
 			}
@@ -104,7 +127,8 @@ void synchronizer::process_dir(file_map_t *remote_list,
 			{
 				sync_task_ptr task(new file_uploader(
 					ctx_, cur_local_path, cur_remote_path));
-				agenda_->schedule(task);
+				if (check_included(cur_local_filename))
+					agenda_->schedule(task);
 			} else
 			{
 				if (!cur_remote_child)
@@ -112,13 +136,15 @@ void synchronizer::process_dir(file_map_t *remote_list,
 					if (delete_missing_)
 					{
 						sync_task_ptr task(new local_file_deleter(cur_local_path));
-						agenda_->schedule(task);
+						if (check_included(cur_local_filename))
+							agenda_->schedule(task);
 					}
 				} else
 				{
 					sync_task_ptr task(new file_downloader(
 						ctx_, cur_local_path, cur_remote_path));
-					agenda_->schedule(task);
+					if (check_included(cur_local_filename))
+						agenda_->schedule(task);
 				}
 			}
 		} else
@@ -148,11 +174,16 @@ void synchronizer::process_missing(const file_map_t &cur,
 			process_missing(file->children_, new_dir);
 		} else
 		{
+			if (!check_included(filename))
+				continue;
+
 			if (do_upload_)
 			{
 				if (delete_missing_)
+				{
 					agenda_->schedule(sync_task_ptr(
 						new remote_file_deleter(ctx_, file->full_name_)));
+				}
 			} else
 			{
 				//Missing local file just means that we need to download it
