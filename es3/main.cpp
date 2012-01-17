@@ -200,12 +200,20 @@ int main(int argc, char **argv)
 								  cfg.c_str(),generic), vm);
 			}
 		}
+	
+		//Try to parse the environment
+		std::map<std::string, std::string> env_name_map;
+		env_name_map["AWS_ACCESS_KEY_ID"]="access-key";
+		env_name_map["AWS_SECRET_ACCESS_KEY"]="secret-key";
+		po::store(po::parse_environment(generic, boost::bind(
+				&std::map<std::string,std::string>::operator [], env_name_map, _1)), vm);
 	} catch(const boost::program_options::error &err)
 	{
 		std::cerr << "Failed to parse the configuration file. Error: "
 				  << err.what() << std::endl;
 		return 2;
 	}
+
 	bool no_progress = vm.count("no-progress");
 	bool no_stats = vm.count("no-stats");
 
