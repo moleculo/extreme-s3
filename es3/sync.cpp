@@ -12,8 +12,8 @@
 using namespace es3;
 
 synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &ctx,
-						   std::string remote, bf::path local, bool do_upload,
-						   bool delete_missing,
+						   stringvec remote, std::vector<bf::path> local,
+						   bool do_upload, bool delete_missing,
 						   const stringvec &included, const stringvec &excluded)
 	: agenda_(agenda), ctx_(ctx), remote_(remote), local_(local),
 	  do_upload_(do_upload), delete_missing_(delete_missing),

@@ -234,23 +234,27 @@ std::string s3_connection::read_fully(const std::string &verb,
 	return res;
 }
 
-file_map_t s3_connection::list_files(const std::string &prefix)
+s3_directory_ptr s3_connection::list_files(const std::string &path)
 {
-	file_map_t res;
+	s3_directory_ptr res(new s3_directory());
+	res->dir_path_.zone_ = conn_data_->zone_;
+	res->dir_path_.bucket_ = conn_data_->bucket_;
+	res->dir_path_.path_ = *path.rbegin()=='/'? path : path+"/";
+
 	std::string marker;
 	while(true)
 	{
 		std::string args;
-		if (prefix.empty())
+		if (path.empty())
 			args="?marker="+escape(marker);
 		else
-			args="?prefix="+escape(prefix)+"&marker="+escape(marker);
+			args="?prefix="+escape(path)+"&marker="+escape(marker);
 		std::string list=read_fully("GET", "", args);
 
 		TiXmlDocument doc;
 		doc.Parse(list.c_str());
 		if (doc.Error())
-			err(errWarn) << "Failed to get file listing from /" << prefix;
+			err(errWarn) << "Failed to get file listing from /" << path;
 		TiXmlHandle docHandle(&doc);
 
 		TiXmlNode *node=docHandle.FirstChild("ListBucketResult")
@@ -281,18 +285,23 @@ file_map_t s3_connection::list_files(const std::string &prefix)
 			break;
 	}
 
-	return std::move(res);
+	return res;
 }
 
-void s3_connection::deconstruct_file(file_map_t &res,
+void s3_connection::deconstruct_file(s3_directory_ptr res,
 									 const std::string &name,
 									 const std::string &size)
 {
 	assert(size!="0");
 	std::string cur_name = name;
 
-	file_map_t *cur_pos=&res;
-	remote_file_ptr cur_parent;
+	//First, snip off the common path
+	assert(cur_name.find(res->dir_path_.path_)==0);
+	cur_name = cur_name.substr(res->dir_path_.path_.size());
+
+	s3_directory_ptr cur_dir=res;
+	//While advancing the cur_dir, snip off the directory components
+	//from cur_name until we reach the leaf (i.e. the filename)
 	while(true)
 	{
 		size_t pos=cur_name.find('/');
@@ -302,40 +311,32 @@ void s3_connection::deconstruct_file(file_map_t &res,
 			throw std::bad_exception();
 		std::string component = cur_name.substr(0, pos);
 
-		remote_file_ptr ptr;
-		auto iter=cur_pos->find(component);
-		if (iter!=cur_pos->end())
-			ptr = iter->second;
+		s3_directory_ptr dir;
+		auto iter=cur_dir->subdirs_.find(component);
+		if (iter!=cur_dir->subdirs_.end())
+			dir = iter->second; //There's a subdir with this name already
 		else
 		{
-			ptr = remote_file_ptr(new remote_file());
-			ptr->is_dir_ = true;
-			ptr->name_ = component;
-			ptr->full_name_ = cur_parent?
-						(cur_parent->full_name_+"/"+component) :
-						"/" + component;
-			ptr->parent_ = cur_parent;
-			(*cur_pos)[component] = ptr;
+			dir = s3_directory_ptr(new s3_directory());
+			dir->dir_path_ = derive(cur_dir->dir_path_, component);
+			dir->name_ = component;
+			dir->parent_ = cur_dir;
+			cur_dir->subdirs_[component] = dir;
 		}
-		if (!ptr->is_dir_)
-			throw std::bad_exception();
-		cur_pos = &ptr->children_;
-		cur_parent = ptr;
 
+		cur_dir = dir;
 		cur_name = cur_name.substr(pos+1);
 	}
 
 	remote_file_ptr fl(new remote_file());
-	fl->is_dir_ = false;
 	fl->name_ = cur_name;
-	fl->full_name_ = name;
-	if (fl->full_name_.at(0)!='/')
-		fl->full_name_="/"+fl->full_name_;
+	fl->absolute_name_ = derive(cur_dir->dir_path_, cur_name);
 	fl->size_ = atoll(size.c_str());
-	fl->parent_ = cur_parent;
-	if (cur_pos->find(cur_name)!=cur_pos->end())
+	fl->parent_ = cur_dir;
+
+	if (cur_dir->files_.find(cur_name)!=cur_dir->files_.end())
 		throw std::bad_exception();
-	(*cur_pos)[cur_name] = fl;
+	cur_dir->files_[cur_name] = fl;
 }
 
 static std::string find_header(void *ptr, size_t size, size_t nmemb,

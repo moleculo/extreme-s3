@@ -12,14 +12,14 @@ namespace es3 {
 	{
 		agenda_ptr agenda_;
 		context_ptr ctx_;
-		std::string remote_;
-		bf::path local_;
+		stringvec remote_;
+		std::vector<bf::path> local_;
 		bool do_upload_;
 		bool delete_missing_;
 		stringvec included_, excluded_;
 	public:
 		synchronizer(agenda_ptr agenda, const context_ptr &ctx,
-					 std::string remote, bf::path local,
+					 stringvec remote, std::vector<bf::path> local,
 					 bool do_upload, bool delete_missing,
 					 const stringvec &included, const stringvec &excluded);
 		void create_schedule();
