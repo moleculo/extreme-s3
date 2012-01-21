@@ -84,38 +84,38 @@ namespace es3 {
 		~s3_connection();
 
 		std::string read_fully(const std::string &verb,
-							   const std::string &path,
+							   const s3_path &path,
 							   const std::string &args="",
 							   const header_map_t &opts=header_map_t());
-		s3_directory_ptr list_files(const std::string &path);
-		std::string upload_data(const std::string &path,
+		s3_directory_ptr list_files(const s3_path &path);
+		std::string upload_data(const s3_path &path,
 								const char *data, size_t size,
 								const header_map_t& opts=header_map_t());
-		void download_data(const std::string &path,
+		void download_data(const s3_path &path,
 			uint64_t offset, char *data, size_t size,
 			const header_map_t& opts=header_map_t());
 
-		std::string initiate_multipart(const std::string &path,
+		std::string initiate_multipart(const s3_path &path,
 									   const header_map_t &opts);
-		std::string complete_multipart(const std::string &path,
+		std::string complete_multipart(const s3_path &path,
 									   const std::string &upload_id,
 									   const std::vector<std::string> &etags);
-		file_desc find_mtime_and_size(const std::string &path);
+		file_desc find_mtime_and_size(const s3_path &path);
 
-		std::string find_region();
+		std::string find_region(const std::string &bucket);
 	private:
 		void checked(int curl_code);
 		void check_for_errors(const std::string &curl_res);
 		void prepare(const std::string &verb,
-				  const std::string &path,
+				  const s3_path &path,
 				  const header_map_t &opts=header_map_t());
 
 		std::string sign(const std::string &str);
 		struct curl_slist* authenticate_req(struct curl_slist *,
-				const std::string &verb, const std::string &path,
+				const std::string &verb, const s3_path &path,
 				const header_map_t &opts);
 
-		void set_url(const std::string &path, const std::string &args);
+		void set_url(const s3_path &path, const std::string &args);
 		void deconstruct_file(s3_directory_ptr res, const std::string &name,
 							  const std::string &size);
 	};

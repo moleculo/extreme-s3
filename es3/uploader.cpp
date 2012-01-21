@@ -25,7 +25,7 @@ struct es3::upload_content
 
 	context_ptr conn_;
 	std::string upload_id_;
-	std::string remote_;
+	s3_path remote_;
 
 	std::mutex lock_;
 	size_t num_parts_;
@@ -55,8 +55,8 @@ public:
 		param.sched_priority = 1+num_*90/content_->num_parts_;
 		pthread_setschedparam(pthread_self(), SCHED_RR, &param);
 
-		std::string part_path=content_->remote_+
-				"?partNumber="+int_to_string(num_+1)
+		s3_path part_path=content_->remote_;
+		part_path.path_+="?partNumber="+int_to_string(num_+1)
 				+"&uploadId="+content_->upload_id_;
 
 		s3_connection up(content_->conn_);

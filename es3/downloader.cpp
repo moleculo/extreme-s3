@@ -26,7 +26,7 @@ struct download_content
 	size_t num_segments_, segments_read_;
 	size_t remote_size_, raw_size_;
 
-	std::string remote_path_;
+	s3_path remote_path_;
 	bf::path local_file_, target_file_;
 	bool delete_temp_file_, compressed_;
 

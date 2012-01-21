@@ -11,26 +11,24 @@
 
 using namespace es3;
 
-struct local_file;
-struct local_dir;
-typedef boost::shared_ptr<local_file> local_file_ptr;
-typedef boost::shared_ptr<local_dir> local_dir_ptr;
-
-struct local_file
+namespace es3
 {
-	bf::path absolute_name_;
-	std::string name_;
-	bool unsyncable_;
-};
+	struct local_file
+	{
+		bf::path absolute_name_;
+		std::string name_;
+		bool unsyncable_;
+	};
 
-struct local_dir
-{
-	bf::path absolute_name_;
-	std::string name_;
+	struct local_dir
+	{
+		bf::path absolute_name_;
+		std::string name_;
 
-	std::map<std::string, local_file_ptr> files_;
-	std::map<std::string, local_dir_ptr> subdirs_;
-};
+		std::map<std::string, local_file_ptr> files_;
+		std::map<std::string, local_dir_ptr> subdirs_;
+	};
+}; //namespace es3
 
 static void check_entry(local_dir_ptr parent,
 				   const bf::directory_entry &dent, synchronizer *sync)
@@ -153,7 +151,7 @@ template<class dir_ptr_t, class file_ptr_t>
 }
 
 synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &ctx,
-						   stringvec remote,stringvec local,
+						   std::vector<s3_path> remote,stringvec local,
 						   bool do_upload, bool delete_missing,
 						   const stringvec &included, const stringvec &excluded)
 	: agenda_(agenda), ctx_(ctx), remote_(remote), local_(local),
@@ -205,11 +203,46 @@ void synchronizer::create_schedule()
 			remotes=cur;
 	}
 
+	if (do_upload_)
+		process_upload(locals, remotes);
 //	std::string prefix = remote_;
 //	if (!prefix.empty() && prefix.at(0)=='/')
 //		prefix=prefix.substr(1);
 //	file_map_t remotes = conn.list_files(prefix);
 //	process_dir(&remotes, remote_, local_);
+}
+
+void synchronizer::delete_recursive(s3_directory_ptr dir)
+{
+	for(auto iter=dir->files_.begin();iter!=dir->files_.end();++iter)
+	{
+		sync_task_ptr task
+				(new remote_file_deleter(ctx_, iter->second->absolute_name_));
+		agenda_->schedule(task);
+	}
+	for(auto iter=dir->subdirs_.begin();iter!=dir->subdirs_.end();++iter)
+		delete_recursive(iter->second);
+}
+
+void synchronizer::process_upload(local_dir_ptr locals,
+								  s3_directory_ptr remotes)
+{
+	for(auto iter=locals->files_.begin(); iter!=locals->files_.end();++iter)
+	{
+		local_file_ptr file = iter->second;
+		if (remotes->subdirs_.count(file->name_) && !file->unsyncable_)
+		{
+			if (delete_missing_)
+			{
+				delete_recursive(remotes->subdirs_[file->name_]);
+			} else
+			{
+				VLOG(0) << "Local file "<< file->absolute_name_ << " "
+						<< "shadows directory on the remote side, but we're "
+						<< "not allowed to remove it.";
+			}
+		}
+	}
 }
 
 /*

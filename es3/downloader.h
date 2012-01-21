@@ -12,12 +12,12 @@ namespace es3 {
 		const context_ptr conn_;
 		const bool delete_dir_;
 		const bf::path path_;
-		const std::string remote_;
+		const s3_path remote_;
 
 	public:
 		file_downloader(const context_ptr &conn,
 					  const bf::path &path,
-					  const std::string &remote,
+					  const s3_path &remote,
 					  bool delete_dir = false)
 			: conn_(conn), path_(path), remote_(remote),
 			  delete_dir_(delete_dir)

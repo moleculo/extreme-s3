@@ -98,12 +98,12 @@ void s3_connection::check_for_errors(const std::string &curl_res)
 }
 
 void s3_connection::prepare(const std::string &verb,
-		  const std::string &path,
+		  const s3_path &path,
 		  const header_map_t &opts)
 {
-	std::string cur_path=path;
-	if (cur_path.empty())
-		cur_path.append("/");
+	s3_path cur_path=path;
+	if (cur_path.path_.empty())
+		cur_path.path_.append("/");
 
 	curl_easy_reset(curl_);
 	curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, error_buffer_);
@@ -132,25 +132,25 @@ void s3_connection::prepare(const std::string &verb,
 	checked(curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 16384*16));
 
 	checked(curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1));
-	set_url(cur_path, "");
+	set_url(path, "");
 }
 
-void s3_connection::set_url(const std::string &path, const std::string &args)
+void s3_connection::set_url(const s3_path &path, const std::string &args)
 {
-	std::string cur_path=path;
-	if (cur_path.empty())
-		cur_path.append("/");
+	s3_path cur_path=path;
+	if (cur_path.path_.empty())
+		cur_path.path_.append("/");
 
 	std::string url = conn_data_->use_ssl_?"https://" : "http://";
-	url.append(conn_data_->bucket_).append(".").append(conn_data_->zone_)
+	url.append(cur_path.bucket_).append(".").append(cur_path.zone_)
 			.append(".amazonaws.com");
-	url.append(cur_path);
+	url.append(cur_path.path_);
 	url.append(args);
 	checked(curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()));
 }
 
 curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
-	const std::string &verb, const std::string &path, const header_map_t &opts)
+	const std::string &verb, const s3_path &path, const header_map_t &opts)
 {
 	header_map_t my_opts = opts;
 
@@ -172,7 +172,7 @@ curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
 	}
 
 	//Signature
-	std::string canonicalizedResource="/"+conn_data_->bucket_+path;
+	std::string canonicalizedResource="/"+path.bucket_+path.path_;
 	std::string stringToSign = verb + "\n" +
 		try_get(opts, "content-md5") + "\n" +
 		try_get(opts, "content-type") + "\n" +
@@ -219,7 +219,7 @@ static size_t string_appender(const char *ptr,
 }
 
 std::string s3_connection::read_fully(const std::string &verb,
-									  const std::string &path,
+									  const s3_path &path,
 									  const std::string &args,
 									  const header_map_t &opts)
 {
@@ -234,22 +234,27 @@ std::string s3_connection::read_fully(const std::string &verb,
 	return res;
 }
 
-s3_directory_ptr s3_connection::list_files(const std::string &path)
+s3_directory_ptr s3_connection::list_files(const s3_path &path)
 {
 	s3_directory_ptr res(new s3_directory());
-	res->absolute_name_.zone_ = conn_data_->zone_;
-	res->absolute_name_.bucket_ = conn_data_->bucket_;
-	res->absolute_name_.path_ = *path.rbegin()=='/'? path : path+"/";
+	res->absolute_name_.zone_ = path.zone_;
+	res->absolute_name_.bucket_ = path.bucket_;
+	res->absolute_name_.path_ = path.path_;
+	if (*path.path_.rbegin()!='/')
+		res->absolute_name_.path_.append("/");
+
+	s3_path root=path;
+	root.path_="/";
 
 	std::string marker;
 	while(true)
 	{
 		std::string args;
-		if (path.empty())
+		if (path.path_.empty())
 			args="?marker="+escape(marker);
 		else
-			args="?prefix="+escape(path)+"&marker="+escape(marker);
-		std::string list=read_fully("GET", "", args);
+			args="?prefix="+escape(path.path_)+"&marker="+escape(marker);
+		std::string list=read_fully("GET", root, args);
 
 		TiXmlDocument doc;
 		doc.Parse(list.c_str());
@@ -394,7 +399,7 @@ static size_t find_etag(void *ptr, size_t size, size_t nmemb, void *userdata)
 	return size*nmemb;
 }
 
-file_desc s3_connection::find_mtime_and_size(const std::string &path)
+file_desc s3_connection::find_mtime_and_size(const s3_path &path)
 {
 	file_desc result;
 	result.compressed=false;
@@ -453,7 +458,7 @@ public:
 	}
 };
 
-std::string s3_connection::upload_data(const std::string &path,
+std::string s3_connection::upload_data(const s3_path &path,
 	const char *data, size_t size, const header_map_t& opts)
 {
 	assert(data && size);
@@ -486,10 +491,12 @@ std::string s3_connection::upload_data(const std::string &path,
 }
 
 std::string s3_connection::initiate_multipart(
-	const std::string &path, const header_map_t &opts)
+	const s3_path &path, const header_map_t &opts)
 {
 	set_url(path, "");
-	std::string list=read_fully("POST", path+"?uploads", "", opts);
+	s3_path up_path =path;
+	up_path.path_+="?uploads";
+	std::string list=read_fully("POST", up_path, "", opts);
 
 	TiXmlDocument doc;
 	doc.Parse(list.c_str());
@@ -506,7 +513,7 @@ std::string s3_connection::initiate_multipart(
 	return node->Value();
 }
 
-std::string s3_connection::complete_multipart(const std::string &path,
+std::string s3_connection::complete_multipart(const s3_path &path,
 	const std::string &upload_id, const std::vector<std::string> &etags)
 {
 	std::string data="<CompleteMultipartUpload>";
@@ -523,7 +530,9 @@ std::string s3_connection::complete_multipart(const std::string &path,
 	}
 	data.append("</CompleteMultipartUpload>");
 
-	prepare("POST", path+"?uploadId="+upload_id);
+	s3_path up_path=path;
+	up_path.path_+="?uploadId="+upload_id;
+	prepare("POST", up_path);
 
 	buf_data data_params(data.c_str(), data.size());
 	checked(curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1));
@@ -576,7 +585,7 @@ public:
 	}
 };
 
-void s3_connection::download_data(const std::string &path,
+void s3_connection::download_data(const s3_path &path,
 	uint64_t offset, char *data, size_t size, const header_map_t& opts)
 {
 	prepare("GET", path, opts);
@@ -600,9 +609,14 @@ void s3_connection::download_data(const std::string &path,
 					  << " of "<< path << " is incorrect.";
 }
 
-std::string s3_connection::find_region()
+std::string s3_connection::find_region(const std::string &bucket)
 {
-	std::string reg_data=read_fully("GET", "/?location");
+	s3_path path;
+	path.zone_ = "";
+	path.bucket_ = bucket;
+	path.path_ = "/?location";
+
+	std::string reg_data=read_fully("GET", path);
 	check_for_errors(reg_data);
 
 	TiXmlDocument doc;

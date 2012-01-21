@@ -12,7 +12,7 @@ namespace es3 {
 		bf::path scratch_dir_;
 		bool use_ssl_, do_compression_;
 		std::string api_key_, secret_key;
-		std::string zone_, bucket_;
+//		std::string zone_, bucket_;
 
 		conn_context() : use_ssl_(), do_compression_(true) {};
 	private:

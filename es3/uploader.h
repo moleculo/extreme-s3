@@ -16,11 +16,11 @@ namespace es3 {
 	{
 		const context_ptr conn_;
 		const bf::path path_;
-		const std::string remote_;
+		const s3_path remote_;
 	public:
 		file_uploader(const context_ptr &conn,
 					  const bf::path &path,
-					  const std::string &remote)
+					  const s3_path &remote)
 			: conn_(conn), path_(path), remote_(remote)
 		{
 		}
@@ -36,9 +36,9 @@ namespace es3 {
 	class remote_file_deleter : public sync_task
 	{
 		const context_ptr conn_;
-		const std::string remote_;
+		const s3_path remote_;
 	public:
-		remote_file_deleter(const context_ptr &conn, const std::string &remote)
+		remote_file_deleter(const context_ptr &conn, const s3_path &remote)
 			: conn_(conn), remote_(remote)
 		{
 		}

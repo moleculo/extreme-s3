@@ -85,13 +85,13 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 		return 2;
 	}
 
-	//TODO: de-uglify
-	context->bucket_=path.bucket_;
-	context->zone_="s3";
-	s3_connection conn(context);
-	std::string region=conn.find_region();
-	if (!region.empty())
-		context->zone_="s3-"+region;
+//	//TODO: de-uglify
+//	context->bucket_=path.bucket_;
+//	context->zone_="s3";
+//	s3_connection conn(context);
+//	std::string region=conn.find_region();
+//	if (!region.empty())
+//		context->zone_="s3-"+region;
 
 //	synchronizer sync(ag, context, path.path_, local, upload, delete_missing,
 //					  included, excluded);
