@@ -37,10 +37,15 @@ namespace es3 {
 		return res;
 	}
 	ES3LIB_PUBLIC s3_path parse_path(const std::string &url);
+	inline std::ostream& operator << (std::ostream &out, const s3_path &p)
+	{
+		out << "s3://" << p.bucket_ << "/" << p.path_;
+		return out;
+	}
 
-	struct remote_file;
-	typedef boost::shared_ptr<remote_file> remote_file_ptr;
-	typedef std::map<std::string, remote_file_ptr> file_map_t;
+	struct s3_file;
+	typedef boost::shared_ptr<s3_file> s3_file_ptr;
+	typedef std::map<std::string, s3_file_ptr> file_map_t;
 
 	struct s3_directory;
 	typedef boost::shared_ptr<s3_directory> s3_directory_ptr;
@@ -50,13 +55,14 @@ namespace es3 {
 	struct s3_directory
 	{
 		std::string name_;
-		s3_path dir_path_;
+		s3_path absolute_name_;
+
 		file_map_t files_;
 		subdir_map_t subdirs_;
 		s3_directory_weak_t parent_;
 	};
 
-	struct remote_file
+	struct s3_file
 	{
 		std::string name_;
 		s3_path absolute_name_;

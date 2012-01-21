@@ -237,9 +237,9 @@ std::string s3_connection::read_fully(const std::string &verb,
 s3_directory_ptr s3_connection::list_files(const std::string &path)
 {
 	s3_directory_ptr res(new s3_directory());
-	res->dir_path_.zone_ = conn_data_->zone_;
-	res->dir_path_.bucket_ = conn_data_->bucket_;
-	res->dir_path_.path_ = *path.rbegin()=='/'? path : path+"/";
+	res->absolute_name_.zone_ = conn_data_->zone_;
+	res->absolute_name_.bucket_ = conn_data_->bucket_;
+	res->absolute_name_.path_ = *path.rbegin()=='/'? path : path+"/";
 
 	std::string marker;
 	while(true)
@@ -296,8 +296,8 @@ void s3_connection::deconstruct_file(s3_directory_ptr res,
 	std::string cur_name = name;
 
 	//First, snip off the common path
-	assert(cur_name.find(res->dir_path_.path_)==0);
-	cur_name = cur_name.substr(res->dir_path_.path_.size());
+	assert(cur_name.find(res->absolute_name_.path_)==0);
+	cur_name = cur_name.substr(res->absolute_name_.path_.size());
 
 	s3_directory_ptr cur_dir=res;
 	//While advancing the cur_dir, snip off the directory components
@@ -318,7 +318,7 @@ void s3_connection::deconstruct_file(s3_directory_ptr res,
 		else
 		{
 			dir = s3_directory_ptr(new s3_directory());
-			dir->dir_path_ = derive(cur_dir->dir_path_, component);
+			dir->absolute_name_ = derive(cur_dir->absolute_name_, component);
 			dir->name_ = component;
 			dir->parent_ = cur_dir;
 			cur_dir->subdirs_[component] = dir;
@@ -328,9 +328,9 @@ void s3_connection::deconstruct_file(s3_directory_ptr res,
 		cur_name = cur_name.substr(pos+1);
 	}
 
-	remote_file_ptr fl(new remote_file());
+	s3_file_ptr fl(new s3_file());
 	fl->name_ = cur_name;
-	fl->absolute_name_ = derive(cur_dir->dir_path_, cur_name);
+	fl->absolute_name_ = derive(cur_dir->absolute_name_, cur_name);
 	fl->size_ = atoll(size.c_str());
 	fl->parent_ = cur_dir;
 

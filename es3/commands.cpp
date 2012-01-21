@@ -93,8 +93,8 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 	if (!region.empty())
 		context->zone_="s3-"+region;
 
-	synchronizer sync(ag, context, path.path_, local, upload, delete_missing,
-					  included, excluded);
-	sync.create_schedule();
+//	synchronizer sync(ag, context, path.path_, local, upload, delete_missing,
+//					  included, excluded);
+//	sync.create_schedule();
 	return ag->run();
 }
