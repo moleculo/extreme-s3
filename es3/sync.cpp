@@ -72,12 +72,14 @@ static void check_entry(local_dir_ptr parent,
 }
 
 static local_dir_ptr build_local_dir(const std::string &start_path,
-									 synchronizer *sync)
+									 synchronizer *sync, bool upload)
 {
 	local_dir_ptr res(new local_dir());
 	bf::path start(bf::absolute(start_path));
+	if (start.filename()==".")
+		start=start.parent_path();
 
-	if (*start_path.rbegin() != '/')
+	if (*start_path.rbegin() != '/' && upload)
 	{
 		//A tricky bit - we're actually synchronizing path/../path, not path/*
 		res->absolute_name_ = start.parent_path();
@@ -186,7 +188,7 @@ void synchronizer::create_schedule()
 	local_dir_ptr locals;
 	for(auto iter=local_.begin();iter!=local_.end();++iter)
 	{
-		local_dir_ptr cur(build_local_dir(*iter, this));
+		local_dir_ptr cur(build_local_dir(*iter, this, do_upload_));
 		if (locals)
 			merge_to_left<local_dir_ptr, local_file_ptr>(locals, cur);
 		else
@@ -196,7 +198,7 @@ void synchronizer::create_schedule()
 	s3_directory_ptr remotes;
 	for(auto iter=remote_.begin();iter!=remote_.end();++iter)
 	{
-		s3_directory_ptr cur = conn.list_files(*iter);
+		s3_directory_ptr cur = conn.list_files(*iter, do_upload_);
 		if (remotes)
 			merge_to_left<s3_directory_ptr,s3_file_ptr>(remotes, cur);
 		else
@@ -205,11 +207,8 @@ void synchronizer::create_schedule()
 
 	if (do_upload_)
 		process_upload(locals, remotes, remotes->absolute_name_);
-//	std::string prefix = remote_;
-//	if (!prefix.empty() && prefix.at(0)=='/')
-//		prefix=prefix.substr(1);
-//	file_map_t remotes = conn.list_files(prefix);
-//	process_dir(&remotes, remote_, local_);
+	else
+		process_downloads(remotes, locals, locals->absolute_name_);
 }
 
 void synchronizer::delete_recursive(s3_directory_ptr dir)
@@ -305,6 +304,75 @@ void synchronizer::process_upload(local_dir_ptr locals,
 		}
 		for(auto iter=unseen_dirs.begin();iter!=unseen_dirs.end();++iter)
 			delete_recursive(iter->second);
+	}
+}
+
+void synchronizer::process_downloads(s3_directory_ptr remotes,
+	local_dir_ptr locals, const bf::path &local_path)
+{
+	std::map<std::string, bf::path> unseen;
+	if (locals)
+	{
+		for(auto f=locals->files_.begin();f!=locals->files_.end();++f)
+			unseen[f->first]=f->second->absolute_name_;
+		for(auto f=locals->subdirs_.begin();f!=locals->subdirs_.end();++f)
+			unseen[f->first]=f->second->absolute_name_;
+	}
+
+	for(auto iter=remotes->files_.begin(); iter!=remotes->files_.end();++iter)
+	{
+		s3_file_ptr file = iter->second;
+		unseen.erase(file->name_);
+
+		bf::path cur_local_path = local_path / file->name_;
+		bool shadowed=locals && locals->subdirs_.count(file->name_);
+		if (shadowed && !delete_missing_)
+		{
+			VLOG(0) << "Remote file "<< file->absolute_name_ << " "
+					<< "is shadowed by a local directory, "
+					<< "but we're not allowed to remove it.";
+		} else
+		{
+			sync_task_ptr task(new file_downloader(
+				ctx_, cur_local_path, file->absolute_name_, shadowed));
+			agenda_->schedule(task);
+		}
+	}
+
+	for(auto iter=remotes->subdirs_.begin(); iter!=remotes->subdirs_.end();++iter)
+	{
+		s3_directory_ptr dir = iter->second;
+		unseen.erase(dir->name_);
+
+		bf::path cur_local_path = local_path / dir->name_;
+
+		local_dir_ptr new_dir;
+		if (locals)
+			new_dir=try_get(locals->subdirs_, dir->name_);
+
+		bool shadowed=locals && locals->files_.count(dir->name_) ;
+		if (shadowed && !delete_missing_)
+		{
+			VLOG(0) << "Remote dir "<< dir->absolute_name_ << " "
+					<< "is shadowed by a local file, but we're "
+					<< "not allowed to remove it.";
+		} else
+		{
+			if (shadowed)
+				local_file_deleter(cur_local_path)(agenda_ptr());
+
+			if (!new_dir)
+				mkdir(cur_local_path.c_str(), 0755) |
+					libc_die2("Failed to create "+cur_local_path.string());
+			process_downloads(dir, new_dir, cur_local_path);
+		}
+	}
+
+	if (delete_missing_)
+	{
+		for(auto iter=unseen.begin();iter!=unseen.end();++iter)
+			agenda_->schedule(sync_task_ptr(
+								  new local_file_deleter(iter->second)));
 	}
 }
 

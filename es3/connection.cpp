@@ -31,8 +31,6 @@ s3_path es3::parse_path(const std::string &url)
 	{
 		res.bucket_=bucket_and_path.substr(0, path_pos);
 		res.path_=bucket_and_path.substr(path_pos);
-		if (*res.path_.rbegin()!='/')
-			res.path_+='/';
 	} else
 	{
 		res.bucket_=bucket_and_path;
@@ -235,12 +233,12 @@ std::string s3_connection::read_fully(const std::string &verb,
 	return res;
 }
 
-s3_directory_ptr s3_connection::list_files(const s3_path &path)
+s3_directory_ptr s3_connection::list_files(const s3_path &path,
+										   bool try_to_root)
 {
 	s3_directory_ptr res(new s3_directory());
 	res->absolute_name_ = path;
-	if (*path.path_.rbegin()!='/')
-		res->absolute_name_.path_.append("/");
+	res->absolute_name_.path_ = "/";
 
 	s3_path root=path;
 	root.path_="/";
@@ -249,10 +247,13 @@ s3_directory_ptr s3_connection::list_files(const s3_path &path)
 	while(true)
 	{
 		std::string args;
-		if (path.path_.empty() || path.path_=="/")
+		assert(!path.path_.empty() && path.path_[0]=='/');
+
+		std::string no_slash = path.path_.substr(1);
+		if (no_slash.empty())
 			args="?marker="+escape(marker);
 		else
-			args="?prefix="+escape(path.path_)+"&marker="+escape(marker);
+			args="?prefix="+escape(no_slash)+"&marker="+escape(marker);
 		std::string list=read_fully("GET", root, args);
 
 		TiXmlDocument doc;

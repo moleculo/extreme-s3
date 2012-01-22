@@ -92,6 +92,24 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 		}
 		locals = args;
 		do_upload=true;
+	} else
+	{
+		locals.push_back(tgt);
+		if (!bf::exists(tgt))
+		{
+			std::cerr << "ERR: Non-existing path " << tgt << std::endl;
+			return 3;
+		}
+		for(auto iter=args.begin();iter!=args.end();++iter)
+		{
+			s3_path path = parse_path(*iter);
+			std::string region=conn.find_region(path.bucket_);
+			if (!region.empty())
+				path.zone_="s3-"+region;
+			remotes.push_back(path);
+		}
+
+		do_upload = false;
 	}
 
 //	s3_path path;

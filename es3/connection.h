@@ -87,7 +87,7 @@ namespace es3 {
 							   const s3_path &path,
 							   const std::string &args="",
 							   const header_map_t &opts=header_map_t());
-		s3_directory_ptr list_files(const s3_path &path);
+		s3_directory_ptr list_files(const s3_path &path, bool try_to_root);
 		std::string upload_data(const s3_path &path,
 								const char *data, size_t size,
 								const header_map_t& opts=header_map_t());
