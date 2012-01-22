@@ -82,10 +82,12 @@ int main(int argc, char **argv)
 	access.add_options()
 		("access-key,a", po::value<std::string>(
 			 &cd->api_key_)->required(),
-			"Amazon S3 API key")
+			"Amazon S3 API key. If not set then AWS_ACCESS_KEY_ID "
+			"environment variable is used.")
 		("secret-key,s", po::value<std::string>(
 			 &cd->secret_key)->required(),
-			"Amazon S3 secret key")
+			"Amazon S3 secret key. If not set then AWS_SECRET_ACCESS_KEY "
+			"environment variable is used.")
 		("use-ssl,l", po::value<bool>(
 			 &cd->use_ssl_)->default_value(false),
 			"Use SSL for communications with the Amazon S3 servers")
