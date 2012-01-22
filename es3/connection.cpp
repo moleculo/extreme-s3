@@ -142,8 +142,9 @@ void s3_connection::set_url(const s3_path &path, const std::string &args)
 		cur_path.path_.append("/");
 
 	std::string url = conn_data_->use_ssl_?"https://" : "http://";
-	url.append(cur_path.bucket_).append(".").append(cur_path.zone_)
-			.append(".amazonaws.com");
+	url.append(cur_path.bucket_);
+	url.append(".").append(cur_path.zone_).append("s3");
+	url.append(".amazonaws.com");
 	url.append(cur_path.path_);
 	url.append(args);
 	checked(curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()));
@@ -237,9 +238,7 @@ std::string s3_connection::read_fully(const std::string &verb,
 s3_directory_ptr s3_connection::list_files(const s3_path &path)
 {
 	s3_directory_ptr res(new s3_directory());
-	res->absolute_name_.zone_ = path.zone_;
-	res->absolute_name_.bucket_ = path.bucket_;
-	res->absolute_name_.path_ = path.path_;
+	res->absolute_name_ = path;
 	if (*path.path_.rbegin()!='/')
 		res->absolute_name_.path_.append("/");
 
@@ -250,7 +249,7 @@ s3_directory_ptr s3_connection::list_files(const s3_path &path)
 	while(true)
 	{
 		std::string args;
-		if (path.path_.empty())
+		if (path.path_.empty() || path.path_=="/")
 			args="?marker="+escape(marker);
 		else
 			args="?prefix="+escape(path.path_)+"&marker="+escape(marker);
@@ -298,7 +297,7 @@ void s3_connection::deconstruct_file(s3_directory_ptr res,
 									 const std::string &size)
 {
 	assert(size!="0");
-	std::string cur_name = name;
+	std::string cur_name = "/"+name;
 
 	//First, snip off the common path
 	assert(cur_name.find(res->absolute_name_.path_)==0);

@@ -50,7 +50,7 @@ std::vector<po::option> subcommands_parser(stringvec& args,
 static std::string get_at(const std::map<std::string, std::string> &map,
 					  const std::string &key)
 {
-	return map.at(key);
+	return try_get(map, key);
 }
 
 int main(int argc, char **argv)

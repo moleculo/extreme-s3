@@ -30,7 +30,8 @@ namespace es3 {
 
 		bool check_included(const std::string &name);
 	private:
-		void process_upload(local_dir_ptr locals, s3_directory_ptr remotes);
+		void process_upload(local_dir_ptr locals, s3_directory_ptr remotes,
+							const s3_path &remote_path);
 		void process_downloads(s3_directory_ptr remotes, local_dir_ptr locals);
 
 		void delete_recursive(s3_directory_ptr dir);

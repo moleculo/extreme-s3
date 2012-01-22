@@ -204,7 +204,7 @@ void synchronizer::create_schedule()
 	}
 
 	if (do_upload_)
-		process_upload(locals, remotes);
+		process_upload(locals, remotes, remotes->absolute_name_);
 //	std::string prefix = remote_;
 //	if (!prefix.empty() && prefix.at(0)=='/')
 //		prefix=prefix.substr(1);
@@ -225,23 +225,86 @@ void synchronizer::delete_recursive(s3_directory_ptr dir)
 }
 
 void synchronizer::process_upload(local_dir_ptr locals,
-								  s3_directory_ptr remotes)
+								  s3_directory_ptr remotes,
+								  const s3_path &remote_path)
 {
+	std::map<std::string, s3_file_ptr> unseen;
+	std::map<std::string, s3_directory_ptr> unseen_dirs;
+	if (remotes)
+	{
+		unseen.insert(remotes->files_.begin(), remotes->files_.end());
+		unseen_dirs.insert(remotes->subdirs_.begin(), remotes->subdirs_.end());
+	}
+
 	for(auto iter=locals->files_.begin(); iter!=locals->files_.end();++iter)
 	{
 		local_file_ptr file = iter->second;
-		if (remotes->subdirs_.count(file->name_) && !file->unsyncable_)
+		unseen.erase(file->name_);
+		unseen_dirs.erase(file->name_);
+		if (file->unsyncable_) //Skip bad files
+			continue;
+
+		s3_path cur_remote_path = derive(remote_path, file->name_);
+		if (remotes && remotes->subdirs_.count(file->name_))
 		{
 			if (delete_missing_)
 			{
 				delete_recursive(remotes->subdirs_[file->name_]);
+				sync_task_ptr task(new file_uploader(
+					ctx_, file->absolute_name_, cur_remote_path));
+				agenda_->schedule(task);
 			} else
 			{
 				VLOG(0) << "Local file "<< file->absolute_name_ << " "
 						<< "shadows directory on the remote side, but we're "
 						<< "not allowed to remove it.";
 			}
+		} else
+		{
+			sync_task_ptr task(new file_uploader(
+				ctx_, file->absolute_name_, cur_remote_path));
+			agenda_->schedule(task);
 		}
+	}
+
+	for(auto iter=locals->subdirs_.begin(); iter!=locals->subdirs_.end();++iter)
+	{
+		local_dir_ptr dir = iter->second;
+		unseen.erase(dir->name_);
+		unseen_dirs.erase(dir->name_);
+		s3_path cur_remote_path = derive(remote_path, dir->name_);
+
+		if (remotes && remotes->files_.count(dir->name_))
+		{
+			if (delete_missing_)
+			{
+				sync_task_ptr task(new remote_file_deleter(ctx_,
+					remotes->files_[dir->name_]->absolute_name_));
+				agenda_->schedule(task);
+				process_upload(dir, s3_directory_ptr(), cur_remote_path);
+			} else
+			{
+				VLOG(0) << "Local dir "<< dir->absolute_name_ << " "
+						<< "is shadowed by file on the remote side, but we're "
+						<< "not allowed to remove it.";
+			}
+		} else
+		{
+			process_upload(dir, remotes?try_get(remotes->subdirs_, dir->name_):
+										s3_directory_ptr(), cur_remote_path);
+		}
+	}
+
+	if (delete_missing_)
+	{
+		for(auto iter=unseen.begin();iter!=unseen.end();++iter)
+		{
+			sync_task_ptr task(new remote_file_deleter(ctx_,
+				iter->second->absolute_name_));
+			agenda_->schedule(task);
+		}
+		for(auto iter=unseen_dirs.begin();iter!=unseen_dirs.end();++iter)
+			delete_recursive(iter->second);
 	}
 }
 
