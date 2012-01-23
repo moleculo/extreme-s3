@@ -238,10 +238,17 @@ s3_directory_ptr s3_connection::list_files(const s3_path &path,
 {
 	s3_directory_ptr res(new s3_directory());
 	res->absolute_name_ = path;
-	res->absolute_name_.path_ = "/";
 
-	s3_path root=path;
-	root.path_="/";
+	if (try_to_root && *path.path_.rbegin() != '/')
+	{
+		size_t pos=path.path_.find_last_of('/');
+		if (pos==std::string::npos)
+			res->absolute_name_.path_ = "/";
+		else
+			res->absolute_name_.path_ = path.path_.substr(0, pos+1);
+	} else
+	{
+	}
 
 	std::string marker;
 	while(true)
@@ -254,6 +261,9 @@ s3_directory_ptr s3_connection::list_files(const s3_path &path,
 			args="?marker="+escape(marker);
 		else
 			args="?prefix="+escape(no_slash)+"&marker="+escape(marker);
+
+		s3_path root=path;
+		root.path_="/";
 		std::string list=read_fully("GET", root, args);
 
 		TiXmlDocument doc;
