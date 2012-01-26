@@ -39,7 +39,7 @@ namespace es3 {
 	ES3LIB_PUBLIC s3_path parse_path(const std::string &url);
 	inline std::ostream& operator << (std::ostream &out, const s3_path &p)
 	{
-		out << "s3://" << p.bucket_ << "/" << p.path_;
+		out << "s3://" << p.bucket_ << p.path_;
 		return out;
 	}
 

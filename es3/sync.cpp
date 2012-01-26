@@ -36,7 +36,8 @@ static void check_entry(local_dir_ptr parent,
 	if (!sync->check_included(dent.path().string()))
 		return;
 
-	if (dent.status().type()==bf::directory_file)
+	if (dent.status().type()==bf::directory_file &&
+			dent.symlink_status().type()!=bf::symlink_file)
 	{
 		//Recurse into subdir
 		local_dir_ptr target(new local_dir());
@@ -56,10 +57,11 @@ static void check_entry(local_dir_ptr parent,
 		file->name_ = file->absolute_name_.filename().string();
 		parent->files_[file->name_] = file;
 
-		if (dent.status().type()==bf::regular_file)
+		if (dent.status().type()==bf::regular_file &&
+				dent.symlink_status().type()!=bf::symlink_file)
 		{
 			file->unsyncable_ = false;
-		} else if (dent.status().type()==bf::symlink_file)
+		} else if (dent.symlink_status().type()==bf::symlink_file)
 		{
 			file->unsyncable_ = true;
 			VLOG(2) << "Symlink skipped "<< dent.path();
