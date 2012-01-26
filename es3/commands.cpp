@@ -118,7 +118,12 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 
 	synchronizer sync(ag, context, remotes, locals, do_upload, delete_missing,
 					  included, excluded);
-	sync.create_schedule();
+	if (!sync.create_schedule())
+	{
+		std::cerr << "ERR: <SOURCE> not found.\n";
+		return 2;
+	}
+
 	return ag->run();
 }
 

@@ -26,7 +26,7 @@ namespace es3 {
 					 std::vector<s3_path> remote, stringvec local,
 					 bool do_upload, bool delete_missing,
 					 const stringvec &included, const stringvec &excluded);
-		void create_schedule();
+		bool create_schedule();
 
 		bool check_included(const std::string &name);
 	private:

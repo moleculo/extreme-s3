@@ -182,7 +182,7 @@ bool synchronizer::check_included(const std::string &name)
 	return true;
 }
 
-void synchronizer::create_schedule()
+bool synchronizer::create_schedule()
 {
 	//Retrieve the list of remote files
 	s3_connection conn(ctx_);
@@ -208,9 +208,14 @@ void synchronizer::create_schedule()
 	}
 
 	if (do_upload_)
+	{
 		process_upload(locals, remotes, remotes->absolute_name_);
-	else
+		return true;
+	} else
+	{
 		process_downloads(remotes, locals, locals->absolute_name_);
+		return !remotes->files_.empty() || !remotes->subdirs_.empty();
+	}
 }
 
 void synchronizer::delete_recursive(s3_directory_ptr dir)
