@@ -112,38 +112,6 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 		do_upload = false;
 	}
 
-//	s3_path path;
-//	std::string local;
-//	bool upload = false;
-//	if (src.find("s3://")==0)
-//	{
-//		path = parse_path(src);
-//		local = tgt;
-//		upload = false;
-//	} else if (tgt.find("s3://")==0)
-//	{
-//		path = parse_path(tgt);
-//		local = src;
-//		upload = true;
-//	} else
-//	{
-//		std::cerr << "Error: one of <SOURCE> or <DESTINATION> must be an S3 URL.\n";
-//		return 2;
-//	}
-//	if (local.find("s3://")==0)
-//	{
-//		std::cerr << "Error: one of <SOURCE> or <DESTINATION> must be a local path \n";
-//		return 2;
-//	}
-
-//	//TODO: de-uglify
-//	context->bucket_=path.bucket_;
-//	context->zone_="s3";
-//	s3_connection conn(context);
-//	std::string region=conn.find_region();
-//	if (!region.empty())
-//		context->zone_="s3-"+region;
-
 	synchronizer sync(ag, context, remotes, locals, do_upload, delete_missing,
 					  included, excluded);
 	sync.create_schedule();

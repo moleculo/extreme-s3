@@ -136,7 +136,7 @@ namespace es3
 						}
 					} catch(const std::exception &ex)
 					{
-						VLOG(0) << "ERROR: " << ex.what();
+						VLOG(0) << "ERR: " << ex.what();
 						break;
 					} catch(...)
 					{
