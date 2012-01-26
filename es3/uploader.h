@@ -17,11 +17,13 @@ namespace es3 {
 		const context_ptr conn_;
 		const bf::path path_;
 		const s3_path remote_;
+		const bool just_touch_;
 	public:
 		file_uploader(const context_ptr &conn,
 					  const bf::path &path,
-					  const s3_path &remote)
-			: conn_(conn), path_(path), remote_(remote)
+					  const s3_path &remote,
+					  bool just_touch=false)
+			: conn_(conn), path_(path), remote_(remote), just_touch_(just_touch)
 		{
 		}
 

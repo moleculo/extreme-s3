@@ -97,8 +97,12 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 		locals.push_back(tgt);
 		if (!bf::exists(tgt))
 		{
-			std::cerr << "ERR: Non-existing path " << tgt << std::endl;
-			return 3;
+			bf::create_directories(tgt);
+			if (!bf::exists(tgt))
+			{
+				std::cerr << "ERR: Non-existing path " << tgt << std::endl;
+				return 3;
+			}
 		}
 		for(auto iter=args.begin();iter!=args.end();++iter)
 		{
@@ -116,4 +120,82 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 					  included, excluded);
 	sync.create_schedule();
 	return ag->run();
+}
+
+int es3::do_test(context_ptr context, const stringvec& params,
+			 agenda_ptr ag, bool help)
+{
+	if (help)
+	{
+		std::cout << "Test syntax: es3 test <PATH>\n"
+				  << "where <PATH> is either:\n"
+				  << "\t - Local file/directory\n"
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
+				  << std::endl << std::endl;
+		return 0;
+	}
+	if (params.size()!=1)
+	{
+		std::cerr << "ERR: <PATH> must be specified.\n";
+		return 2;
+	}
+
+	std::string tgt = params.at(0);
+	if (tgt.find("s3://")==0)
+	{
+		s3_path path = parse_path(tgt);
+		s3_connection conn(context);
+		std::string region=conn.find_region(path.bucket_);
+		if (!region.empty())
+			path.zone_="s3-"+region;
+
+		s3_directory_ptr ptr=conn.list_files(path, true);
+		if (!ptr->subdirs_.empty() || !ptr->files_.empty())
+			return 0;
+		else
+			return 1;
+	} else
+	{
+		if (bf::exists(bf::path(tgt)))
+			return 0;
+		else
+			return 1;
+	}
+}
+
+int es3::do_touch(context_ptr context, const stringvec& params,
+			 agenda_ptr ag, bool help)
+{
+	if (help)
+	{
+		std::cout << "Touch syntax: es3 test <PATH>\n"
+				  << "where <PATH> is either:\n"
+				  << "\t - Local file/directory\n"
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
+				  << std::endl << std::endl;
+		return 0;
+	}
+	if (params.size()!=1)
+	{
+		std::cerr << "ERR: <PATH> must be specified.\n";
+		return 2;
+	}
+
+	std::string tgt = params.at(0);
+	if (tgt.find("s3://")==0)
+	{
+		s3_path path = parse_path(tgt);
+		s3_connection conn(context);
+		std::string region=conn.find_region(path.bucket_);
+		if (!region.empty())
+			path.zone_="s3-"+region;
+
+		s3_directory_ptr ptr=conn.list_files(path, true);
+		if (ptr->subdirs_.empty() && ptr->files_.empty())
+			conn.upload_data(path, "", 0);
+		return 0;
+	} else
+	{
+		return system(("touch "+tgt).c_str());
+	}
 }

@@ -284,7 +284,7 @@ s3_directory_ptr s3_connection::list_files(const s3_path &path,
 					FirstChild()->ToText()->Value();
 			std::string size = node->FirstChild("Size")->
 					FirstChild()->ToText()->Value();
-			if (size!="0")
+			//if (size!="0")
 			{
 				deconstruct_file(res, name, size);
 			}
@@ -307,7 +307,7 @@ void s3_connection::deconstruct_file(s3_directory_ptr res,
 									 const std::string &name,
 									 const std::string &size)
 {
-	assert(size!="0");
+//	assert(size!="0");
 	std::string cur_name = "/"+name;
 
 	//First, snip off the common path
@@ -471,7 +471,7 @@ public:
 std::string s3_connection::upload_data(const s3_path &path,
 	const char *data, size_t size, const header_map_t& opts)
 {
-	assert(data && size);
+	assert(data);
 
 	std::string etag;
 	buf_data read_data(data, size);

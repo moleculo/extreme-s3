@@ -11,6 +11,11 @@ namespace es3 {
 	int do_rsync(context_ptr context, const stringvec& params,
 			 agenda_ptr ag, bool help);
 
+	int do_test(context_ptr context, const stringvec& params,
+			 agenda_ptr ag, bool help);
+	int do_touch(context_ptr context, const stringvec& params,
+			 agenda_ptr ag, bool help);
+
 }; //namespace es3
 
 #endif //COMMANDS_H

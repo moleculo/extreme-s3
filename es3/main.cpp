@@ -126,12 +126,8 @@ int main(int argc, char **argv)
 			std::function<int(context_ptr, const stringvec&, agenda_ptr, bool)> >
 			subcommands_map;
 	subcommands_map["sync"] = boost::bind(&do_rsync, _1, _2, _3, _4);
-
-	//	subcommands.push_back("ls");
-	//	subcommands.push_back("cp");
-	//	subcommands.push_back("rm");
-	//	subcommands.push_back("mb");
-	//	subcommands.push_back("rb");
+	subcommands_map["test"] = boost::bind(&do_test, _1, _2, _3, _4);
+	subcommands_map["touch"] = boost::bind(&do_touch, _1, _2, _3, _4);
 
 	stringvec subcommands;
 	for(auto iter=subcommands_map.begin();iter!=subcommands_map.end();++iter)
