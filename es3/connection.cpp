@@ -142,7 +142,7 @@ void s3_connection::set_url(const s3_path &path, const std::string &args)
 
 	std::string url = conn_data_->use_ssl_?"https://" : "http://";
 	url.append(cur_path.bucket_);
-	url.append(".").append(cur_path.zone_).append("s3");
+	url.append(".").append(cur_path.zone_);
 	url.append(".amazonaws.com");
 //	std::string ugly=cur_path.path_;
 //	boost::replace_all(ugly, " ", "%20");
@@ -626,7 +626,7 @@ void s3_connection::download_data(const s3_path &path,
 std::string s3_connection::find_region(const std::string &bucket)
 {
 	s3_path path;
-	path.zone_ = "";
+	path.zone_ = "s3";
 	path.bucket_ = bucket;
 	path.path_ = "/?location";
 
@@ -648,6 +648,6 @@ std::string s3_connection::find_region(const std::string &bucket)
 			.FirstChild()
 			.ToText();
 	if (!node)
-		return ""; //Default location
+		return "s3"; //Default location
 	return node->Value();
 }
