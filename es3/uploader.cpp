@@ -46,6 +46,11 @@ public:
 	{
 	}
 
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Upload segment " << num_ << " of " << content_->remote_;
+	}
+
 	virtual void operator()(agenda_ptr agenda)
 	{
 		VLOG(2) << "Starting upload of a part " << num_ << " of "
@@ -102,6 +107,11 @@ public:
 		cur_segment_(cur_segment), number_of_segments_(number_of_segments),
 		update_log_(update_log)
 	{
+	}
+
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Read segment " << cur_segment_ << " of " << content_->remote_;
 	}
 
 	virtual task_type_e get_class() const { return taskIOBound; }

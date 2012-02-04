@@ -56,6 +56,12 @@ public:
 
 	virtual task_type_e get_class() const { return taskIOBound; }
 
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Write segment " << cur_segment_ << " of "
+			<< content_->local_file_;
+	}
+
 	virtual void operator()(agenda_ptr agenda)
 	{
 		context_ptr ctx = content_->ctx_;
@@ -116,6 +122,12 @@ public:
 	download_segment_task(download_content_ptr content, size_t cur_segment) :
 		content_(content), cur_segment_(cur_segment)
 	{
+	}
+
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Download segment " << cur_segment_ << " of "
+			<< content_->local_file_;
 	}
 
 	virtual void operator()(agenda_ptr agenda)

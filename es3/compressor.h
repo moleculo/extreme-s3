@@ -62,6 +62,10 @@ namespace es3 {
 		{
 		}
 		virtual void operator()(agenda_ptr agenda);
+		virtual void print_to(std::ostream &str)
+		{
+			str << "Compress " << path_;
+		}
 	private:
 		void on_complete(const bf::path &name, uint64_t num,
 						 uint64_t resulting_size);
@@ -93,6 +97,11 @@ namespace es3 {
 
 		virtual task_type_e get_class() const { return taskCPUBound; }
 		virtual void operator()(agenda_ptr agenda);
+
+		virtual void print_to(std::ostream &str)
+		{
+			str << "Decompress " << source_ << " to " << result_;
+		}
 	};
 
 	bool should_compress(const bf::path &p, uint64_t sz);

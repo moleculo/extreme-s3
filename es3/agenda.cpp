@@ -322,3 +322,14 @@ void agenda::draw_stats()
 				  << std::endl;
 	}
 }
+
+void agenda::print_queue()
+{
+	std::cerr << "There are " << tasks_.size() << " task[s] present.\n";
+	for(auto iter=tasks_.begin();iter!=tasks_.end();++iter)
+	{
+		sync_task_ptr task=*iter;
+		task->print_to(std::cerr);
+		std::cerr<<std::endl;
+	}
+}

@@ -118,13 +118,31 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 
 	synchronizer sync(ag, context, remotes, locals, do_upload, delete_missing,
 					  included, excluded);
-	if (!sync.create_schedule())
+	if (!sync.create_schedule(false))
 	{
 		std::cerr << "ERR: <SOURCE> not found.\n";
 		return 2;
 	}
+	int res=ag->run();
+	if (res!=0)
+		return res;
 
-	return ag->run();
+	//Double-check that everything's OK
+	synchronizer sync2(ag, context, remotes, locals, do_upload, delete_missing,
+					  included, excluded);
+	if (!sync2.create_schedule(true))
+	{
+		std::cerr << "ERR: Upload check failed.\n";
+		return 3;
+	}
+	if (ag->tasks_count())
+	{
+		std::cerr << "ERR: ";
+		ag->print_queue();
+		return 4;
+	}
+
+	return 0;
 }
 
 int es3::do_test(context_ptr context, const stringvec& params,

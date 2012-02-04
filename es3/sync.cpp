@@ -182,7 +182,7 @@ bool synchronizer::check_included(const std::string &name)
 	return true;
 }
 
-bool synchronizer::create_schedule()
+bool synchronizer::create_schedule(bool check_mode)
 {
 	//Retrieve the list of remote files
 	s3_connection conn(ctx_);
@@ -209,11 +209,11 @@ bool synchronizer::create_schedule()
 
 	if (do_upload_)
 	{
-		process_upload(locals, remotes, remotes->absolute_name_);
+		process_upload(locals, remotes, remotes->absolute_name_, check_mode);
 		return true;
 	} else
 	{
-		process_downloads(remotes, locals, locals->absolute_name_);
+		process_downloads(remotes, locals, locals->absolute_name_, check_mode);
 		return !remotes->files_.empty() || !remotes->subdirs_.empty();
 	}
 }
@@ -232,7 +232,7 @@ void synchronizer::delete_recursive(s3_directory_ptr dir)
 
 void synchronizer::process_upload(local_dir_ptr locals,
 								  s3_directory_ptr remotes,
-								  const s3_path &remote_path)
+								  const s3_path &remote_path, bool check_mode)
 {
 	std::map<std::string, s3_file_ptr> unseen;
 	std::map<std::string, s3_directory_ptr> unseen_dirs;
@@ -267,9 +267,12 @@ void synchronizer::process_upload(local_dir_ptr locals,
 			}
 		} else
 		{
-			sync_task_ptr task(new file_uploader(
-				ctx_, file->absolute_name_, cur_remote_path));
-			agenda_->schedule(task);
+			if (!check_mode || !remotes->files_.count(file->name_))
+			{
+				sync_task_ptr task(new file_uploader(
+					ctx_, file->absolute_name_, cur_remote_path));
+				agenda_->schedule(task);
+			}
 		}
 	}
 
@@ -287,7 +290,7 @@ void synchronizer::process_upload(local_dir_ptr locals,
 				sync_task_ptr task(new remote_file_deleter(ctx_,
 					remotes->files_[dir->name_]->absolute_name_));
 				agenda_->schedule(task);
-				process_upload(dir, s3_directory_ptr(), cur_remote_path);
+				process_upload(dir, s3_directory_ptr(), cur_remote_path, check_mode);
 			} else
 			{
 				VLOG(0) << "Local dir "<< dir->absolute_name_ << " "
@@ -297,7 +300,7 @@ void synchronizer::process_upload(local_dir_ptr locals,
 		} else
 		{
 			process_upload(dir, remotes?try_get(remotes->subdirs_, dir->name_):
-										s3_directory_ptr(), cur_remote_path);
+					s3_directory_ptr(), cur_remote_path, check_mode);
 		}
 	}
 
@@ -315,7 +318,7 @@ void synchronizer::process_upload(local_dir_ptr locals,
 }
 
 void synchronizer::process_downloads(s3_directory_ptr remotes,
-	local_dir_ptr locals, const bf::path &local_path)
+	local_dir_ptr locals, const bf::path &local_path, bool check_mode)
 {
 	std::map<std::string, bf::path> unseen;
 	if (locals)
@@ -340,9 +343,12 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 					<< "but we're not allowed to remove it.";
 		} else
 		{
-			sync_task_ptr task(new file_downloader(
-				ctx_, cur_local_path, file->absolute_name_, shadowed));
-			agenda_->schedule(task);
+			if (!check_mode || !locals->files_.count(file->name_))
+			{
+				sync_task_ptr task(new file_downloader(
+					ctx_, cur_local_path, file->absolute_name_, shadowed));
+				agenda_->schedule(task);
+			}
 		}
 	}
 
@@ -371,7 +377,7 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 			if (!new_dir)
 				mkdir(cur_local_path.c_str(), 0755) |
 					libc_die2("Failed to create "+cur_local_path.string());
-			process_downloads(dir, new_dir, cur_local_path);
+			process_downloads(dir, new_dir, cur_local_path, check_mode);
 		}
 	}
 

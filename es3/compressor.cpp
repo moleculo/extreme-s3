@@ -23,6 +23,11 @@ namespace es3
 
 		virtual task_type_e get_class() const { return taskCPUBound; }
 
+		virtual void print_to(std::ostream &str)
+		{
+			str << "Compress block " << block_num_ << " of " << parent_->path_;
+		}
+
 		virtual void operator()(agenda_ptr agenda)
 		{
 			std::pair<bf::path,uint64_t> res=do_compress(agenda);

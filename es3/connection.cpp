@@ -6,6 +6,7 @@
 #include <openssl/md5.h>
 #include <tinyxml.h>
 #include "scope_guard.h"
+#include <boost/algorithm/string.hpp>
 
 using namespace es3;
 
@@ -143,6 +144,9 @@ void s3_connection::set_url(const s3_path &path, const std::string &args)
 	url.append(cur_path.bucket_);
 	url.append(".").append(cur_path.zone_).append("s3");
 	url.append(".amazonaws.com");
+//	std::string ugly=cur_path.path_;
+//	boost::replace_all(ugly, " ", "%20");
+//	url.append(ugly);
 	url.append(cur_path.path_);
 	url.append(args);
 	checked(curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()));

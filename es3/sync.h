@@ -26,14 +26,14 @@ namespace es3 {
 					 std::vector<s3_path> remote, stringvec local,
 					 bool do_upload, bool delete_missing,
 					 const stringvec &included, const stringvec &excluded);
-		bool create_schedule();
+		bool create_schedule(bool check_mode);
 
 		bool check_included(const std::string &name);
 	private:
 		void process_upload(local_dir_ptr locals, s3_directory_ptr remotes,
-							const s3_path &remote_path);
+							const s3_path &remote_path, bool check_mode);
 		void process_downloads(s3_directory_ptr remotes, local_dir_ptr locals,
-							   const bf::path &local_path);
+							   const bf::path &local_path, bool check_mode);
 
 		void delete_recursive(s3_directory_ptr dir);
 	};

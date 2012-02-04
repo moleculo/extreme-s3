@@ -43,6 +43,7 @@ namespace es3 {
 			return std::make_pair(taskNormal,0);
 		}
 		virtual void operator()(agenda_ptr agenda) = 0;
+		virtual void print_to(std::ostream &str) = 0;
 	};
 	typedef boost::shared_ptr<sync_task> sync_task_ptr;
 
@@ -94,6 +95,8 @@ namespace es3 {
 		segment_ptr get_segment();
 		size_t segment_size() const { return segment_size_; }
 
+		void print_queue();
+		size_t tasks_count() const { return tasks_.size(); }
 	private:
 		void draw_progress();
 		void draw_progress_widget();

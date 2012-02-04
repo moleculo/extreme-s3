@@ -25,6 +25,11 @@ namespace es3 {
 		}
 
 		virtual void operator()(agenda_ptr agenda);
+		virtual void print_to(std::ostream &str)
+		{
+			str << "Download " << path_ << " from " << remote_;
+		}
+
 	private:
 	};
 
@@ -37,6 +42,11 @@ namespace es3 {
 		{
 		}
 		virtual void operator()(agenda_ptr agenda);
+		virtual void print_to(std::ostream &str)
+		{
+			str << "Delete " << file_;
+		}
+
 	private:
 	};
 

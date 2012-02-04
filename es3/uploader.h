@@ -28,6 +28,11 @@ namespace es3 {
 		}
 
 		virtual void operator()(agenda_ptr agenda);
+		virtual void print_to(std::ostream &str)
+		{
+			str << "Upload " << path_ << " to " << remote_;
+		}
+
 	private:
 		void start_upload(agenda_ptr ag,
 						  upload_content_ptr content, files_ptr files,
@@ -46,6 +51,11 @@ namespace es3 {
 		}
 
 		virtual void operator()(agenda_ptr agenda);
+		virtual void print_to(std::ostream &str)
+		{
+			str << "Delete " << remote_;
+		}
+
 	private:
 	};
 
