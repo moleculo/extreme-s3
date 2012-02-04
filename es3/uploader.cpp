@@ -270,6 +270,11 @@ void file_uploader::start_upload(agenda_ptr ag,
 			((size%segment_size)==0 ? 0:1));
 	if (number_of_segments>MAX_PART_NUM)
 		err(errFatal) << "File "<<remote_ <<" is too big";
+	if (number_of_segments==0)
+	{
+		assert(files->sizes_.size()==1 && files->sizes_.at(0)==0);
+		number_of_segments=1;
+	}
 
 	content->num_parts_ = number_of_segments;
 	content->etags_.resize(number_of_segments);

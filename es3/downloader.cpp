@@ -190,6 +190,11 @@ void file_downloader::operator()(agenda_ptr agenda)
 				((mod.remote_size_%seg_size)==0?0:1));
 	if (seg_num>MAX_SEGMENTS)
 		err(errFatal) << "Segment size is too small for " << remote_;
+	if (seg_num==0)
+	{
+		assert(mod.remote_size_==0);
+		seg_num=1;
+	}
 
 	dc->mtime_=mod.mtime_;
 	dc->mode_=mod.mode_;
