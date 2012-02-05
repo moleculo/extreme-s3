@@ -96,6 +96,7 @@ namespace es3 {
 		size_t segment_size() const { return segment_size_; }
 
 		void print_queue();
+		void print_epilog();
 		size_t tasks_count() const { return tasks_.size(); }
 	private:
 		void draw_progress();

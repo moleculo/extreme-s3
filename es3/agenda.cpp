@@ -205,10 +205,13 @@ size_t agenda::run()
 			threads.at(f).join();
 	}
 
+	return num_failed_;
+}
+
+void agenda::print_epilog()
+{
 	if (!final_quiet_)
 		draw_stats();
-
-	return num_failed_;
 }
 
 void agenda::draw_progress()

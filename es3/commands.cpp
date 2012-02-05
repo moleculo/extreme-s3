@@ -130,12 +130,16 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 		if (res!=0)
 			return res;
 		if (!ag->tasks_count())
+		{
+			ag->print_epilog();
 			return 0;
+		}
 		//We still have pending tasks. Try once again.
 	}
 
 	if (ag->tasks_count())
 	{
+		ag->print_epilog(); //Print stats, so they're at least visible
 		std::cerr << "ERR: ";
 		ag->print_queue();
 		return 4;
