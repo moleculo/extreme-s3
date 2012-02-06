@@ -77,8 +77,7 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 		//Upload!
 		s3_path path = parse_path(tgt);
 		std::string region=conn.find_region(path.bucket_);
-		if (!region.empty())
-			path.zone_="s3-"+region;
+		path.zone_=region;
 		remotes.push_back(path);
 
 		//Check that local sources exist
@@ -108,8 +107,7 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 		{
 			s3_path path = parse_path(*iter);
 			std::string region=conn.find_region(path.bucket_);
-			if (!region.empty())
-				path.zone_="s3-"+region;
+			path.zone_=region;
 			remotes.push_back(path);
 		}
 
@@ -172,8 +170,7 @@ int es3::do_test(context_ptr context, const stringvec& params,
 		s3_path path = parse_path(tgt);
 		s3_connection conn(context);
 		std::string region=conn.find_region(path.bucket_);
-		if (!region.empty())
-			path.zone_="s3-"+region;
+		path.zone_=region;
 
 		s3_directory_ptr ptr=conn.list_files(path, true);
 		if (!ptr->subdirs_.empty() || !ptr->files_.empty())
@@ -213,8 +210,7 @@ int es3::do_touch(context_ptr context, const stringvec& params,
 		s3_path path = parse_path(tgt);
 		s3_connection conn(context);
 		std::string region=conn.find_region(path.bucket_);
-		if (!region.empty())
-			path.zone_="s3-"+region;
+		path.zone_=region;
 
 		s3_directory_ptr ptr=conn.list_files(path, true);
 		if (ptr->subdirs_.empty() && ptr->files_.empty())

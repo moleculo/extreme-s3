@@ -649,5 +649,5 @@ std::string s3_connection::find_region(const std::string &bucket)
 			.ToText();
 	if (!node)
 		return "s3"; //Default location
-	return node->Value();
+	return std::string("s3-")+node->Value();
 }
