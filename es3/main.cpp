@@ -128,6 +128,7 @@ int main(int argc, char **argv)
 	subcommands_map["sync"] = boost::bind(&do_rsync, _1, _2, _3, _4);
 	subcommands_map["test"] = boost::bind(&do_test, _1, _2, _3, _4);
 	subcommands_map["touch"] = boost::bind(&do_touch, _1, _2, _3, _4);
+	subcommands_map["rm"] = boost::bind(&do_rm, _1, _2, _3, _4);
 
 	stringvec subcommands;
 	for(auto iter=subcommands_map.begin();iter!=subcommands_map.end();++iter)
