@@ -178,8 +178,11 @@ void file_downloader::operator()(agenda_ptr agenda)
 	//remote side
 	s3_connection up(conn_);
 	file_desc mod=up.find_mtime_and_size(remote_);
-	if (mod.mtime_==mtime && mod.raw_size_==file_sz)
-		return; //TODO: add an optional MD5 check?
+	if(mod.mtime_)
+	{
+		if (mod.mtime_==mtime && mod.raw_size_==file_sz)
+			return; //TODO: add an optional MD5 check?
+	}
 
 	//We need to download the file
 	download_content_ptr dc(new download_content());
