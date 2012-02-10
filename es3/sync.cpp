@@ -166,6 +166,9 @@ synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &ctx,
 
 bool synchronizer::check_included(const std::string &name)
 {
+	if (name.find(' ')!=std::string::npos)
+		return false;
+
 	if (!excluded_.empty())
 	{
 		for(auto f = excluded_.begin();f!=excluded_.end();++f)
