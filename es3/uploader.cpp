@@ -116,7 +116,13 @@ public:
 
 	virtual task_type_e get_class() const { return taskIOBound; }
 
-	virtual void operator()(agenda_ptr agenda)
+	virtual size_t needs_segments() const
+	{
+		return number_of_segments_;
+	}
+
+	virtual void operator()(agenda_ptr agenda,
+							const std::vector<segment_ptr> &segments)
 	{
 		size_t segment_size=agenda->segment_size();
 		uint64_t start_offset = segment_size*cur_segment_;
@@ -140,7 +146,7 @@ public:
 		//Now read data!!!
 		for(int f=0;f<number_of_segments_;++f)
 		{
-			segment_ptr seg = agenda->get_segment();
+			segment_ptr seg = segments.at(f);
 			seg->data_.resize(segment_size, 0);
 
 			uint64_t segment_read_so_far=0;

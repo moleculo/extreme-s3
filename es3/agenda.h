@@ -25,24 +25,23 @@ namespace es3 {
 		taskIOBound,
 	};
 
-	enum task_prio_e
-	{
-		taskLeast,
-		taskNormal,
-		taskUrgent,
-	};
-
 	class sync_task
 	{
 	public:
 		virtual ~sync_task() {}
 
 		virtual task_type_e get_class() const { return taskUnbound; }
-		virtual std::pair<task_prio_e, uint64_t> ordinal() const
+		virtual size_t needs_segments() const { return 0; }
+		virtual int64_t ordinal() const
 		{
-			return std::make_pair(taskNormal,0);
+			return 0;
 		}
-		virtual void operator()(agenda_ptr agenda) = 0;
+		virtual void operator()(agenda_ptr agenda,
+								const std::vector<segment_ptr> &segments)
+		{
+			operator ()(agenda);
+		}
+		virtual void operator()(agenda_ptr agenda){}
 		virtual void print_to(std::ostream &str) = 0;
 	};
 	typedef boost::shared_ptr<sync_task> sync_task_ptr;
@@ -61,19 +60,16 @@ namespace es3 {
 
 		std::mutex m_; //This mutex protects the following data {
 		std::condition_variable condition_;
-		std::vector<sync_task_ptr> tasks_;
+		typedef std::multimap<int64_t, sync_task_ptr> task_map_t;
+		std::map<size_t, std::map<task_type_e, task_map_t> > tasks_;
 		std::map<task_type_e, size_t> classes_;
 		size_t num_working_;
+		size_t segments_in_flight_;
 		//}
 
 		std::mutex stats_m_; //This mutex protects the following data {
 		size_t num_submitted_, num_done_, num_failed_;
 		std::map<std::string, std::pair<uint64_t, uint64_t> > progress_;
-		//}
-
-		std::mutex segment_m_; //This mutex protects the following data {
-		std::condition_variable segment_ready_condition_;
-		size_t segments_in_flight_;
 		std::map<std::string, uint64_t> cur_stats_;
 		//}
 
@@ -92,13 +88,14 @@ namespace es3 {
 
 		void add_stat_counter(const std::string &stat, uint64_t val);
 
-		segment_ptr get_segment();
 		size_t segment_size() const { return segment_size_; }
 
 		void print_queue();
 		void print_epilog();
 		size_t tasks_count() const { return tasks_.size(); }
 	private:
+		segment_ptr get_segment();
+
 		void draw_progress();
 		void draw_progress_widget();
 		void draw_stats();

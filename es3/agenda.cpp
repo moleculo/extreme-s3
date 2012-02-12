@@ -34,10 +34,10 @@ namespace es3
 		{
 			delete seg;
 
-			u_guard_t guard(parent_->segment_m_);
+			u_guard_t guard(parent_->m_);
 			assert(parent_->segments_in_flight_>0);
 			parent_->segments_in_flight_--;
-			parent_->segment_ready_condition_.notify_all();
+			parent_->condition_.notify_one();
 		}
 	};
 
@@ -58,23 +58,33 @@ namespace es3
 						return sync_task_ptr();
 				}
 
-				for(auto iter=agenda_->tasks_.begin();
-					iter!=agenda_->tasks_.end();++iter)
+				//Iterate over classes to find one that is not yet full
+				for(auto iter=agenda_->classes_.begin();
+					iter!=agenda_->classes_.end();++iter)
 				{
-					sync_task_ptr cur_task = *iter;
 					//Check if there are too many tasks of this type running
-					task_type_e cur_class=cur_task->get_class();
-					size_t cur_num=agenda_->classes_[cur_class];
-					//Unbound tasks are allowed to exceed their limits and
-					//borrow threads from other classes
-					if (cur_class!=taskUnbound &&
-							agenda_->get_capability(cur_class)<=cur_num)
-						continue;
+					task_type_e cur_class=iter->first;
+					if (!agenda_->tasks_.count(cur_class))
+						continue; //No such tasks
 
-					agenda_->tasks_.erase(iter);
+					size_t cur_num=iter->second;
+					size_t limit=agenda_->get_capability(cur_class);
+//					Unbound tasks are allowed to exceed their limits and
+//					borrow threads from other classes
+					if (cur_class!=taskUnbound && limit<=cur_num)
+						continue; //Too busy
+
+					//Good! We can work on this class
+					agenda::task_map_t &task_map=
+							agenda_->tasks_.at(cur_class);
+					sync_task_ptr res=task_map.begin()->second;
+					task_map.erase(task_map.begin());
+					if (task_map.empty())
+						agenda_->tasks_.erase(cur_class);
+
 					agenda_->num_working_++;
 					agenda_->classes_[cur_class]++;
-					return cur_task;
+					return res;
 				}
 
 				agenda_->condition_.wait(lock);
@@ -168,11 +178,14 @@ void agenda::schedule(sync_task_ptr task)
 	u_guard_t lock(m_);
 	agenda_ptr ptr = shared_from_this();
 
-	auto iter=std::lower_bound(tasks_.begin(), tasks_.end(), task);
-	if (iter!=tasks_.end())
-		tasks_.insert(iter, task);
-	else
-		tasks_.push_back(task);
+//	auto iter=std::lower_bound(tasks_.begin(), tasks_.end(), task);
+//	if (iter!=tasks_.end())
+//		tasks_.insert(iter, task);
+//	else
+//		tasks_.push_back(task);
+	classes_[task->get_class()]; //Force insertion of class entry
+	task_map_t &task_map=tasks_[task->needs_segments()][task->get_class()];
+	task_map.insert(std::make_pair(task->ordinal(), task));
 	condition_.notify_one();
 
 	guard_t lockst(stats_m_);
@@ -329,10 +342,18 @@ void agenda::draw_stats()
 void agenda::print_queue()
 {
 	std::cerr << "There are " << tasks_.size() << " task[s] present.\n";
-	for(auto iter=tasks_.begin();iter!=tasks_.end();++iter)
+	for(auto by_segs=tasks_.begin();by_segs!=tasks_.end();++by_segs)
 	{
-		sync_task_ptr task=*iter;
-		task->print_to(std::cerr);
-		std::cerr<<std::endl;
+		for(auto iter=by_segs->second.begin();
+			iter!=by_segs->second.end(); ++iter)
+		{
+			for(auto iter2=iter->second.begin();
+				iter2!=iter->second.end();++iter2)
+			{
+				sync_task_ptr task=iter2->second;
+				task->print_to(std::cerr);
+				std::cerr<<std::endl;
+			}
+		}
 	}
 }

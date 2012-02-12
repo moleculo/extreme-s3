@@ -130,9 +130,12 @@ public:
 			<< content_->local_file_;
 	}
 
-	virtual void operator()(agenda_ptr agenda)
+	virtual size_t needs_segments() const { return 1; }
+
+	virtual void operator()(agenda_ptr agenda,
+							const std::vector<segment_ptr> &segments)
 	{
-		segment_ptr seg=agenda->get_segment();
+		segment_ptr seg=segments.at(0);
 		size_t segment_size=agenda->segment_size();
 
 		uint64_t start_offset = segment_size*cur_segment_;
