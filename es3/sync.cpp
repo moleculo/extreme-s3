@@ -200,6 +200,9 @@ bool synchronizer::create_schedule(bool check_mode)
 	s3_directory_ptr remotes;
 	for(auto iter=remote_.begin();iter!=remote_.end();++iter)
 	{
+		s3_directory_ptr cur_root=conn.list_files_shallow(
+					*iter, s3_directory_ptr(), !do_upload_);
+
 		s3_directory_ptr cur = conn.list_files(*iter, !do_upload_);
 		if (remotes)
 			merge_to_left<s3_directory_ptr,s3_file_ptr>(remotes, cur);

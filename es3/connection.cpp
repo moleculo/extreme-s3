@@ -237,6 +237,97 @@ std::string s3_connection::read_fully(const std::string &verb,
 	return res;
 }
 
+s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
+	s3_directory_ptr target, bool try_to_root)
+{
+	if (!target)
+	{
+		target=s3_directory_ptr(new s3_directory());
+		target->absolute_name_ = path;
+		if (try_to_root && *path.path_.rbegin() != '/')
+		{
+			size_t pos=path.path_.find_last_of('/');
+			if (pos==std::string::npos)
+				target->absolute_name_.path_ = "/";
+			else
+				target->absolute_name_.path_ = path.path_.substr(0, pos+1);
+		}
+	}
+
+	std::string marker;
+	while(true)
+	{
+		std::string args;
+		assert(!path.path_.empty() && path.path_[0]=='/');
+
+		std::string no_slash = path.path_.substr(1);
+		if (no_slash.empty())
+			args="?marker="+escape(marker)+"&delimiter=/";
+		else
+			args="?prefix="+escape(no_slash)+"&marker="+escape(marker)
+					+"&delimiter=/";
+
+		s3_path root=path;
+		root.path_="/";
+		std::string list=read_fully("GET", root, args);
+
+		TiXmlDocument doc;
+		doc.Parse(list.c_str());
+		if (doc.Error())
+			err(errWarn) << "Failed to get file listing from /" << path;
+		TiXmlHandle docHandle(&doc);
+
+		TiXmlNode *node=docHandle.FirstChild("ListBucketResult")
+				.FirstChild("IsTruncated")
+				.ToNode();
+		if (!node)
+			break;
+		node=node->NextSibling();
+		if (!node)
+			break;
+
+		while(node)
+		{
+			std::string name;
+			if (strcmp(node->Value(), "Contents")==0)
+			{
+				name = node->FirstChild("Key")->
+						FirstChild()->ToText()->Value();
+				std::string size = node->FirstChild("Size")->
+						FirstChild()->ToText()->Value();
+				//deconstruct_file(res, name, size);
+
+				s3_file_ptr fl(new s3_file());
+				fl->name_ = name;
+				fl->absolute_name_ = derive(target->absolute_name_, name);
+				fl->size_ = atoll(size.c_str());
+				fl->parent_ = target;
+				target->files_[name]=fl;
+			} else if (strcmp(node->Value(), "CommonPrefixes")==0)
+			{
+				name = node->FirstChild("Prefix")->
+						FirstChild()->ToText()->Value();
+				s3_directory_ptr dir(new s3_directory());
+				dir->absolute_name_ = derive(target->absolute_name_, name);
+				dir->name_ = name;
+				dir->parent_ = target;
+				target->subdirs_[name] = dir;
+			}
+
+			node=node->NextSibling();
+			if (!node)
+				marker = name;
+		}
+
+		std::string is_trunc=docHandle.FirstChild("ListBucketResult")
+				.FirstChild("IsTruncated").FirstChild().Text()->Value();
+		if (is_trunc=="false")
+			break;
+	}
+
+	return target;
+}
+
 s3_directory_ptr s3_connection::list_files(const s3_path &path,
 										   bool try_to_root)
 {
@@ -250,8 +341,6 @@ s3_directory_ptr s3_connection::list_files(const s3_path &path,
 			res->absolute_name_.path_ = "/";
 		else
 			res->absolute_name_.path_ = path.path_.substr(0, pos+1);
-	} else
-	{
 	}
 
 	std::string marker;
@@ -288,10 +377,7 @@ s3_directory_ptr s3_connection::list_files(const s3_path &path,
 					FirstChild()->ToText()->Value();
 			std::string size = node->FirstChild("Size")->
 					FirstChild()->ToText()->Value();
-			//if (size!="0")
-			{
-				deconstruct_file(res, name, size);
-			}
+			deconstruct_file(res, name, size);
 
 			node=node->NextSibling("Contents");
 			if (!node)
