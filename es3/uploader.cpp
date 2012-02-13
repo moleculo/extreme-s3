@@ -291,6 +291,10 @@ void file_uploader::start_upload(agenda_ptr ag,
 	//Now create file pumps
 	size_t num_per_pump = number_of_segments /
 			ag->get_capability(taskIOBound) + 1;
+
+	if (num_per_pump>ag->max_in_flight()/2)
+		num_per_pump=ag->max_in_flight()/2;
+
 	for(size_t f=0;f<number_of_segments;f+=num_per_pump)
 	{
 		size_t num_cur = number_of_segments-f;

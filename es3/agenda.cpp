@@ -56,6 +56,7 @@ namespace es3
 				{
 					if (agenda_->num_working_==0)
 						return sync_task_ptr();
+					continue;
 				}
 
 				//Iterate over classes to find one that is not yet full
@@ -64,23 +65,38 @@ namespace es3
 				{
 					//Check if there are too many tasks of this type running
 					task_type_e cur_class=iter->first;
-					if (!agenda_->tasks_.count(cur_class))
-						continue; //No such tasks
 
 					size_t cur_num=iter->second;
 					size_t limit=agenda_->get_capability(cur_class);
-//					Unbound tasks are allowed to exceed their limits and
-//					borrow threads from other classes
-					if (cur_class!=taskUnbound && limit<=cur_num)
-						continue; //Too busy
+					//Unbound tasks are allowed to exceed their limits and
+					//borrow threads from other classes
+//					if (cur_class!=taskUnbound && limit<=cur_num)
+//						continue; //Too busy
+					if (limit<=cur_num)
+						continue;
 
-					//Good! We can work on this class
-					agenda::task_map_t &task_map=
-							agenda_->tasks_.at(cur_class);
+					//Good! We can work on this class.
+					//Find the task with the least segment requirements
+					auto pair=agenda_->tasks_.begin();
+					size_t segments_needed=pair->first;
+					size_t segments_avail=agenda_->max_segments_in_flight_-
+							agenda_->segments_in_flight_;
+					if (segments_needed>segments_avail)
+						continue; //No such luck :(
+
+					if (!pair->second.count(cur_class))
+						continue; //No tasks for this class
+
+					agenda::task_map_t &task_map=pair->second.at(cur_class);
+					assert(!task_map.empty());
 					sync_task_ptr res=task_map.begin()->second;
 					task_map.erase(task_map.begin());
 					if (task_map.empty())
-						agenda_->tasks_.erase(cur_class);
+					{
+						pair->second.erase(cur_class);
+						if (pair->second.empty())
+							agenda_->tasks_.erase(pair->first);
+					}
 
 					agenda_->num_working_++;
 					agenda_->classes_[cur_class]++;
@@ -161,15 +177,19 @@ namespace es3
 	};
 }
 
-segment_ptr agenda::get_segment()
+std::vector<segment_ptr> agenda::get_segments(size_t num)
 {
-	u_guard_t guard(segment_m_);
-	while(segments_in_flight_>max_segments_in_flight_)
-		segment_ready_condition_.wait(guard);
+	assert(segments_in_flight_+num<=max_segments_in_flight_);
 
-	segment_deleter del {shared_from_this()};
-	segment_ptr res=segment_ptr(new segment(), del);
-	segments_in_flight_++;
+	std::vector<segment_ptr> res;
+	res.reserve(num);
+	for(size_t f=0;f<num;++f)
+	{
+		segment_deleter del {shared_from_this()};
+		segment_ptr seg=segment_ptr(new segment(), del);
+		res.push_back(seg);
+	}
+	segments_in_flight_+=num;
 	return res;
 }
 
