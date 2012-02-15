@@ -77,8 +77,8 @@ namespace es3
 						continue;
 
 					//Good! We can work on this class.
-					//Find the task with the least segment requirements
-					auto pair=agenda_->tasks_.begin();
+					//Find the task with the greatest segment requirements
+					auto pair=agenda_->tasks_.rbegin();
 					size_t segments_needed=pair->first;
 					size_t segments_avail=agenda_->max_segments_in_flight_-
 							agenda_->segments_in_flight_;
