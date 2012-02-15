@@ -319,8 +319,7 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 				s3_directory_ptr dir(new s3_directory());
 				dir->name_ = extract_leaf(
 							name.substr(0, name.size()-1)); //Trim trailing '/'
-				dir->absolute_name_=target->absolute_name_;
-				dir->absolute_name_.path_="/"+name;
+				dir->absolute_name_=derive(path, dir->name_);
 				dir->parent_ = target;
 				target->subdirs_[name] = dir;
 			}
