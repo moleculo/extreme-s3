@@ -47,15 +47,16 @@ namespace es3
 	public:
 		task_executor(agenda_ptr agenda) : agenda_(agenda) {}
 
-		sync_task_ptr claim_task()
+		std::pair<sync_task_ptr, std::vector<segment_ptr> > claim_task()
 		{
+			std::pair<sync_task_ptr, std::vector<segment_ptr> > res_pair;
 			while(true)
 			{
 				u_guard_t lock(agenda_->m_);
 				if (agenda_->tasks_.empty())
 				{
 					if (agenda_->num_working_==0)
-						return sync_task_ptr();
+						return res_pair;
 					continue;
 				}
 
@@ -100,7 +101,11 @@ namespace es3
 
 					agenda_->num_working_++;
 					agenda_->classes_[cur_class]++;
-					return res;
+
+					res_pair.first=res;
+					if (segments_needed)
+						res_pair.second=agenda_->get_segments(segments_needed);
+					return res_pair;
 				}
 
 				agenda_->condition_.wait(lock);
@@ -130,8 +135,9 @@ namespace es3
 		{
 			while(true)
 			{
-				sync_task_ptr cur_task=claim_task();
-				if (!cur_task)
+				std::pair<sync_task_ptr, std::vector<segment_ptr> > cur_task;
+				cur_task=claim_task();
+				if (!cur_task.first)
 					break;
 
 				bool fail=true;
@@ -139,7 +145,7 @@ namespace es3
 				{
 					try
 					{
-						(*cur_task)(agenda_);
+						(*cur_task.first)(agenda_, cur_task.second);
 						fail=false;
 						break;
 					} catch (const es3_exception &ex)
@@ -171,7 +177,7 @@ namespace es3
 					}
 				}
 
-				cleanup(cur_task, fail);
+				cleanup(cur_task.first, fail);
 			}
 		}
 	};
