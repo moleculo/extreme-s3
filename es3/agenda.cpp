@@ -38,6 +38,7 @@ namespace es3
 			assert(parent_->segments_in_flight_>0);
 			parent_->segments_in_flight_--;
 			parent_->condition_.notify_one();
+			printf("Released\n");
 		}
 	};
 
