@@ -57,6 +57,7 @@ namespace es3
 				{
 					if (agenda_->num_working_==0)
 						return res_pair;
+					agenda_->condition_.wait(lock);
 					continue;
 				}
 
@@ -83,7 +84,10 @@ namespace es3
 					size_t segments_avail=agenda_->max_segments_in_flight_-
 							agenda_->segments_in_flight_;
 					if (segments_needed>segments_avail)
+					{
+						printf("Segs\n");
 						continue; //No such luck :(
+					}
 
 					if (!pair->second.count(cur_class))
 						continue; //No tasks for this class
