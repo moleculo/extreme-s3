@@ -196,7 +196,7 @@ std::vector<segment_ptr> agenda::get_segments(size_t num)
 void agenda::schedule(sync_task_ptr task)
 {
 	u_guard_t lock(m_);
-	agenda_ptr ptr = shared_from_this();
+//	agenda_ptr ptr = shared_from_this();
 
 //	auto iter=std::lower_bound(tasks_.begin(), tasks_.end(), task);
 //	if (iter!=tasks_.end())

@@ -182,6 +182,36 @@ bool synchronizer::check_included(const std::string &name)
 	return true;
 }
 
+class list_subdir_task : public sync_task,
+		public boost::enable_shared_from_this<list_subdir_task>
+{
+	s3_directory_ptr dir_;
+	context_ptr ctx_;
+public:
+	list_subdir_task(s3_directory_ptr dir, context_ptr ctx) :
+		dir_(dir), ctx_(ctx) {}
+
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Read dir " << dir_;
+	}
+
+	virtual task_type_e get_class() const { return taskUnbound; }
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		s3_connection conn(ctx_);
+		conn.list_files_shallow(dir_->absolute_name_, dir_, false);
+
+		for(auto iter=dir_->subdirs_.begin();
+			iter!=dir_->subdirs_.end();++iter)
+		{
+			agenda->schedule(sync_task_ptr(
+								  new list_subdir_task(iter->second, ctx_)));
+		}
+	}
+};
+
 bool synchronizer::create_schedule(bool check_mode)
 {
 	//Retrieve the list of remote files
@@ -197,17 +227,31 @@ bool synchronizer::create_schedule(bool check_mode)
 			locals=cur;
 	}
 
-	s3_directory_ptr remotes;
+	VLOG(1)<<"Preparing S3 file list.";
+	std::vector<s3_directory_ptr> remote_lists;
 	for(auto iter=remote_.begin();iter!=remote_.end();++iter)
 	{
 		s3_directory_ptr cur_root=conn.list_files_shallow(
-					*iter, s3_directory_ptr(), !do_upload_);
+				*iter, s3_directory_ptr(), !do_upload_);
 
-		s3_directory_ptr cur = conn.list_files(*iter, !do_upload_);
+		for(auto iter=cur_root->subdirs_.begin();
+			iter!=cur_root->subdirs_.end();++iter)
+		{
+			agenda_->schedule(sync_task_ptr(
+								  new list_subdir_task(iter->second, ctx_)));
+		}
+		remote_lists.push_back(cur_root);
+	}
+	agenda_->run();
+	VLOG(1)<<"Preparing file list - done.";
+
+	s3_directory_ptr remotes;
+	for(auto iter=remote_lists.begin();iter!=remote_lists.end();++iter)
+	{
 		if (remotes)
-			merge_to_left<s3_directory_ptr,s3_file_ptr>(remotes, cur);
+			merge_to_left<s3_directory_ptr,s3_file_ptr>(remotes, *iter);
 		else
-			remotes=cur;
+			remotes=*iter;
 	}
 
 	if (do_upload_)

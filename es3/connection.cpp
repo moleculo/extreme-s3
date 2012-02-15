@@ -237,6 +237,14 @@ std::string s3_connection::read_fully(const std::string &verb,
 	return res;
 }
 
+static std::string extract_leaf(const std::string &path)
+{
+	size_t idx=path.find_last_of('/');
+	if (idx==std::string::npos || idx==path.size()-1)
+		return path;
+	return path.substr(idx+1);
+}
+
 s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 	s3_directory_ptr target, bool try_to_root)
 {
@@ -298,8 +306,9 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 				//deconstruct_file(res, name, size);
 
 				s3_file_ptr fl(new s3_file());
-				fl->name_ = name;
-				fl->absolute_name_ = derive(target->absolute_name_, name);
+				fl->name_ = extract_leaf(name);
+				fl->absolute_name_=target->absolute_name_;
+				fl->absolute_name_.path_="/"+name;
 				fl->size_ = atoll(size.c_str());
 				fl->parent_ = target;
 				target->files_[name]=fl;
@@ -308,8 +317,10 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 				name = node->FirstChild("Prefix")->
 						FirstChild()->ToText()->Value();
 				s3_directory_ptr dir(new s3_directory());
-				dir->absolute_name_ = derive(target->absolute_name_, name);
-				dir->name_ = name;
+				dir->name_ = extract_leaf(
+							name.substr(0, name.size()-1)); //Trim trailing '/'
+				dir->absolute_name_=target->absolute_name_;
+				dir->absolute_name_.path_="/"+name;
 				dir->parent_ = target;
 				target->subdirs_[name] = dir;
 			}
