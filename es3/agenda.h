@@ -63,6 +63,7 @@ namespace es3 {
 		std::condition_variable condition_;
 		typedef std::multimap<int64_t, sync_task_ptr> task_map_t;
 		typedef std::map<task_type_e, task_map_t> task_by_class_t;
+		typedef std::map<size_t, task_by_class_t> size_map_t;
 		std::map<size_t, task_by_class_t> tasks_;
 		std::map<task_type_e, size_t> classes_;
 		size_t num_working_;

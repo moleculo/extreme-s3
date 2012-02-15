@@ -82,32 +82,32 @@ namespace es3
 
 					//Good! We can work on this class.
 					//Find the task with the greatest segment requirements
-					std::pair<size_t, agenda::task_by_class_t> pair=
-							*agenda_->tasks_.rbegin();
-					size_t segments_needed=pair.first;
+					agenda::size_map_t::iterator pair=
+							--agenda_->tasks_.end();
+					size_t segments_needed=pair->first;
 					if (segments_needed>segments_avail)
 					{
 						//Try the task with the least number of required segs
-						printf("Segs bad %d\n", segments_needed);
-						pair=*agenda_->tasks_.begin();
-						segments_needed=pair.first;
+						printf("\nSegs bad %d\n\n", segments_needed);
+						pair=agenda_->tasks_.begin();
+						segments_needed=pair->first;
 						printf("Segs good %d\n", segments_needed);
 						if (segments_needed>segments_avail)
 							continue; //No such luck :(
 					}
 
-					if (!pair.second.count(cur_class))
+					if (!pair->second.count(cur_class))
 						continue; //No tasks for this class
 
-					agenda::task_map_t &task_map=pair.second.at(cur_class);
+					agenda::task_map_t &task_map=pair->second.at(cur_class);
 					assert(!task_map.empty());
 					sync_task_ptr res=task_map.begin()->second;
 					task_map.erase(task_map.begin());
 					if (task_map.empty())
 					{
-						pair.second.erase(cur_class);
-						if (pair.second.empty())
-							agenda_->tasks_.erase(pair.first);
+						pair->second.erase(cur_class);
+						if (pair->second.empty())
+							agenda_->tasks_.erase(pair->first);
 					}
 
 					agenda_->num_working_++;
