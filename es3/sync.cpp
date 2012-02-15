@@ -429,8 +429,11 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 				local_file_deleter(cur_local_path)(agenda_ptr());
 
 			if (!new_dir)
-				mkdir(cur_local_path.c_str(), 0755) |
-					libc_die2("Failed to create "+cur_local_path.string());
+			{
+				int res=mkdir(cur_local_path.c_str(), 0755);
+				if (res && errno!=EEXIST)
+					res | libc_die2("Failed to create "+cur_local_path.string());
+			}
 			process_downloads(dir, new_dir, cur_local_path, check_mode);
 		}
 	}
