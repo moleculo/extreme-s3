@@ -272,8 +272,12 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 		if (no_slash.empty())
 			args="?marker="+escape(marker)+"&delimiter=/";
 		else
+		{
+			if (*no_slash.rbegin()!='/')
+				no_slash.push_back('/');
 			args="?prefix="+escape(no_slash)+"&marker="+escape(marker)
 					+"&delimiter=/";
+		}
 
 		s3_path root=path;
 		root.path_="/";
@@ -307,8 +311,7 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 
 				s3_file_ptr fl(new s3_file());
 				fl->name_ = extract_leaf(name);
-				fl->absolute_name_=target->absolute_name_;
-				fl->absolute_name_.path_="/"+name;
+				fl->absolute_name_=derive(path, fl->name_);
 				fl->size_ = atoll(size.c_str());
 				fl->parent_ = target;
 				target->files_[name]=fl;
@@ -336,122 +339,6 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 	}
 
 	return target;
-}
-
-s3_directory_ptr s3_connection::list_files(const s3_path &path,
-										   bool try_to_root)
-{
-	s3_directory_ptr res(new s3_directory());
-	res->absolute_name_ = path;
-
-	if (try_to_root && *path.path_.rbegin() != '/')
-	{
-		size_t pos=path.path_.find_last_of('/');
-		if (pos==std::string::npos)
-			res->absolute_name_.path_ = "/";
-		else
-			res->absolute_name_.path_ = path.path_.substr(0, pos+1);
-	}
-
-	std::string marker;
-	while(true)
-	{
-		std::string args;
-		assert(!path.path_.empty() && path.path_[0]=='/');
-
-		std::string no_slash = path.path_.substr(1);
-		if (no_slash.empty())
-			args="?marker="+escape(marker);
-		else
-			args="?prefix="+escape(no_slash)+"&marker="+escape(marker);
-
-		s3_path root=path;
-		root.path_="/";
-		std::string list=read_fully("GET", root, args);
-
-		TiXmlDocument doc;
-		doc.Parse(list.c_str());
-		if (doc.Error())
-			err(errWarn) << "Failed to get file listing from /" << path;
-		TiXmlHandle docHandle(&doc);
-
-		TiXmlNode *node=docHandle.FirstChild("ListBucketResult")
-				.FirstChild("Contents")
-				.ToNode();
-		if (!node)
-			break;
-
-		while(node)
-		{
-			std::string name = node->FirstChild("Key")->
-					FirstChild()->ToText()->Value();
-			std::string size = node->FirstChild("Size")->
-					FirstChild()->ToText()->Value();
-			deconstruct_file(res, name, size);
-
-			node=node->NextSibling("Contents");
-			if (!node)
-				marker = name;
-		}
-
-		std::string is_trunc=docHandle.FirstChild("ListBucketResult")
-				.FirstChild("IsTruncated").FirstChild().Text()->Value();
-		if (is_trunc=="false")
-			break;
-	}
-
-	return res;
-}
-
-void s3_connection::deconstruct_file(s3_directory_ptr res,
-									 const std::string &name,
-									 const std::string &size)
-{
-//	assert(size!="0");
-	std::string cur_name = "/"+name;
-
-	//First, snip off the common path
-	assert(cur_name.find(res->absolute_name_.path_)==0);
-	cur_name = cur_name.substr(res->absolute_name_.path_.size());
-
-	s3_directory_ptr cur_dir=res;
-	//While advancing the cur_dir, snip off the directory components
-	//from cur_name until we reach the leaf (i.e. the filename)
-	while(true)
-	{
-		size_t pos=cur_name.find('/');
-		if (pos==std::string::npos)
-			break;
-		if (pos==cur_name.size()-1)
-			throw std::bad_exception();
-		std::string component = cur_name.substr(0, pos);
-
-		s3_directory_ptr dir;
-		auto iter=cur_dir->subdirs_.find(component);
-		if (iter!=cur_dir->subdirs_.end())
-			dir = iter->second; //There's a subdir with this name already
-		else
-		{
-			dir = s3_directory_ptr(new s3_directory());
-			dir->absolute_name_ = derive(cur_dir->absolute_name_, component);
-			dir->name_ = component;
-			dir->parent_ = cur_dir;
-			cur_dir->subdirs_[component] = dir;
-		}
-
-		cur_dir = dir;
-		cur_name = cur_name.substr(pos+1);
-	}
-
-	s3_file_ptr fl(new s3_file());
-	fl->name_ = cur_name;
-	fl->absolute_name_ = derive(cur_dir->absolute_name_, cur_name);
-	fl->size_ = atoll(size.c_str());
-	fl->parent_ = cur_dir;
-
-	if (cur_dir->files_.find(cur_name)!=cur_dir->files_.end())
-		throw std::bad_exception();
-	cur_dir->files_[cur_name] = fl;
 }
 
 static std::string find_header(void *ptr, size_t size, size_t nmemb,

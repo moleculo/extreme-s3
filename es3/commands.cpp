@@ -173,7 +173,8 @@ int es3::do_test(context_ptr context, const stringvec& params,
 		std::string region=conn.find_region(path.bucket_);
 		path.zone_=region;
 
-		s3_directory_ptr ptr=conn.list_files(path, true);
+		s3_directory_ptr ptr=conn.list_files_shallow(path,
+													 s3_directory_ptr(),  true);
 		if (!ptr->subdirs_.empty() || !ptr->files_.empty())
 			return 0;
 		else
@@ -213,7 +214,8 @@ int es3::do_touch(context_ptr context, const stringvec& params,
 		std::string region=conn.find_region(path.bucket_);
 		path.zone_=region;
 
-		s3_directory_ptr ptr=conn.list_files(path, true);
+		s3_directory_ptr ptr=conn.list_files_shallow(path,
+													 s3_directory_ptr(), true);
 		if (ptr->subdirs_.empty() && ptr->files_.empty())
 			conn.upload_data(path, "", 0);
 		return 0;

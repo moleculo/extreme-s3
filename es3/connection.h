@@ -97,8 +97,6 @@ namespace es3 {
 
 		s3_directory_ptr list_files_shallow(const s3_path &path,
 			s3_directory_ptr target, bool try_to_root);
-		s3_directory_ptr list_files(const s3_path &path,
-									bool try_to_root);
 
 		std::string initiate_multipart(const s3_path &path,
 									   const header_map_t &opts);
@@ -121,8 +119,6 @@ namespace es3 {
 				const header_map_t &opts);
 
 		void set_url(const s3_path &path, const std::string &args);
-		void deconstruct_file(s3_directory_ptr res, const std::string &name,
-							  const std::string &size);
 	};
 
 }; //namespace es3
