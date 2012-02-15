@@ -33,7 +33,7 @@ namespace es3
 static void check_entry(local_dir_ptr parent,
 				   const bf::directory_entry &dent, synchronizer *sync)
 {
-	if (!sync->check_included(dent.path().string()))
+	if (dent.path().string().find(" ")!=std::string::npos)
 		return;
 
 	if (dent.status().type()==bf::directory_file &&
@@ -299,6 +299,8 @@ void synchronizer::process_upload(local_dir_ptr locals,
 		unseen_dirs.erase(file->name_);
 		if (file->unsyncable_) //Skip bad files
 			continue;
+		if (!check_included(file->absolute_name_.string()))
+			continue;
 
 		s3_path cur_remote_path = derive(remote_path, file->name_);
 		if (remotes && remotes->subdirs_.count(file->name_))
@@ -383,6 +385,8 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 	{
 		s3_file_ptr file = iter->second;
 		unseen.erase(file->name_);
+		if (!check_included(file->absolute_name_.path_))
+			continue;
 
 		bf::path cur_local_path = local_path / file->name_;
 		bool shadowed=locals && locals->subdirs_.count(file->name_);

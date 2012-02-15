@@ -39,6 +39,7 @@ namespace es3 {
 		virtual void operator()(agenda_ptr agenda,
 								const std::vector<segment_ptr> &segments)
 		{
+			assert(segments.size()==0 && needs_segments()==0);
 			operator ()(agenda);
 		}
 		virtual void operator()(agenda_ptr agenda){}
