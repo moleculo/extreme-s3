@@ -88,10 +88,8 @@ namespace es3
 					if (segments_needed>segments_avail)
 					{
 						//Try the task with the least number of required segs
-						printf("\nSegs bad %d\n\n", segments_needed);
 						pair=agenda_->tasks_.begin();
 						segments_needed=pair->first;
-						printf("Segs good %d\n", segments_needed);
 						if (segments_needed>segments_avail)
 							continue; //No such luck :(
 					}
