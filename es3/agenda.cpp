@@ -38,7 +38,6 @@ namespace es3
 			assert(parent_->segments_in_flight_>0);
 			parent_->segments_in_flight_--;
 			parent_->condition_.notify_one();
-			printf("Released\n");
 		}
 	};
 
@@ -78,30 +77,35 @@ namespace es3
 					if (limit<=cur_num)
 						continue;
 
-					//Good! We can work on this class.
-					//Find the task with the greatest segment requirements
-					auto pair=agenda_->tasks_.rbegin();
-					size_t segments_needed=pair->first;
 					size_t segments_avail=agenda_->max_segments_in_flight_-
 							agenda_->segments_in_flight_;
+
+					//Good! We can work on this class.
+					//Find the task with the greatest segment requirements
+					std::pair<size_t, agenda::task_by_class_t> pair=
+							*agenda_->tasks_.rbegin();
+					size_t segments_needed=pair.first;
 					if (segments_needed>segments_avail)
 					{
-						printf("Segs\n");
-						continue; //No such luck :(
+						//Try the task with the least number of required segs
+						pair=*agenda_->tasks_.begin();
+						segments_needed=pair.first;
+						if (segments_needed>segments_avail)
+							continue; //No such luck :(
 					}
 
-					if (!pair->second.count(cur_class))
+					if (!pair.second.count(cur_class))
 						continue; //No tasks for this class
 
-					agenda::task_map_t &task_map=pair->second.at(cur_class);
+					agenda::task_map_t &task_map=pair.second.at(cur_class);
 					assert(!task_map.empty());
 					sync_task_ptr res=task_map.begin()->second;
 					task_map.erase(task_map.begin());
 					if (task_map.empty())
 					{
-						pair->second.erase(cur_class);
-						if (pair->second.empty())
-							agenda_->tasks_.erase(pair->first);
+						pair.second.erase(cur_class);
+						if (pair.second.empty())
+							agenda_->tasks_.erase(pair.first);
 					}
 
 					agenda_->num_working_++;
