@@ -47,7 +47,7 @@ curl_ptr_t conn_context::get_curl(const std::string &zone,
 		cur.pop_back();
 		assert(!borrowed_curls_.count(res));
 		borrowed_curls_[res]=zone+"/"+bucket;
-		return curl_ptr_t(res);
+		return curl_ptr_t(res, curl_deleter{this});
 	} else
 	{
 		CURL* res=curl_easy_init();
@@ -62,12 +62,14 @@ curl_ptr_t conn_context::get_curl(const std::string &zone,
 
 		assert(!borrowed_curls_.count(res));
 		borrowed_curls_[res]=zone+"/"+bucket;
-		return curl_ptr_t(res);
+		return curl_ptr_t(res, curl_deleter{this});
 	}
 }
 
 void conn_context::release_curl(CURL* curl)
 {
+	guard_t lock(m_);
+
 	assert(borrowed_curls_.count(curl));
 	std::string key=borrowed_curls_.at(curl);
 	borrowed_curls_.erase(curl);
