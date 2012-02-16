@@ -41,13 +41,34 @@ s3_path es3::parse_path(const std::string &url)
 	return res;
 }
 
+std::mutex tmt;
+std::vector<CURL*> curls;
+
 s3_connection::s3_connection(const context_ptr &conn_data)
-	: curl_(curl_easy_init()), conn_data_(conn_data), header_list_()
+	: curl_(0), conn_data_(conn_data), header_list_()
 {
-	if (!curl_)
-		err(errFatal) << "can't init CURL";
-	curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, error_buffer_);
-	memset(error_buffer_, 0, CURL_ERROR_SIZE);
+	guard_t lock(tmt);
+	if (curls.empty())
+	{
+		curl_=curl_easy_init();
+		if (!curl_)
+			err(errFatal) << "can't init CURL";
+//		curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, error_buffer_);
+//		memset(error_buffer_, 0, CURL_ERROR_SIZE);
+	} else
+	{
+		curl_=curls.back();
+		curls.pop_back();
+	}
+}
+
+s3_connection::~s3_connection()
+{
+	guard_t lock(tmt);
+	//curl_easy_cleanup(curl_);
+	curls.push_back(curl_);
+	if (header_list_)
+		curl_slist_free_all(header_list_);
 }
 
 void s3_connection::checked(int curl_code)
@@ -204,13 +225,6 @@ std::string s3_connection::sign(const std::string &str)
 				  (const unsigned char*)str.c_str(), str.length(),
 				  (unsigned char*)md, &md_len);
 	return base64_encode(md, md_len);
-}
-
-s3_connection::~s3_connection()
-{
-	curl_easy_cleanup(curl_);
-	if (header_list_)
-		curl_slist_free_all(header_list_);
 }
 
 static size_t string_appender(const char *ptr,
