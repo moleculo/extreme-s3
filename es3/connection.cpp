@@ -268,16 +268,12 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 		std::string args;
 		assert(!path.path_.empty() && path.path_[0]=='/');
 
-		std::string no_slash = path.path_.substr(1);
-		if (no_slash.empty())
+		std::string no_leading_slash = path.path_.substr(1);
+		if (no_leading_slash.empty())
 			args="?marker="+escape(marker)+"&delimiter=/";
 		else
-		{
-			if (*no_slash.rbegin()!='/')
-				no_slash.push_back('/');
-			args="?prefix="+escape(no_slash)+"&marker="+escape(marker)
-					+"&delimiter=/";
-		}
+			args="?prefix="+escape(no_leading_slash)+
+					"&marker="+escape(marker)+"&delimiter=/";
 
 		s3_path root=path;
 		root.path_="/";
@@ -311,20 +307,22 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 
 				s3_file_ptr fl(new s3_file());
 				fl->name_ = extract_leaf(name);
-				fl->absolute_name_=derive(path, fl->name_);
+				fl->absolute_name_=derive(target->absolute_name_, fl->name_);
 				fl->size_ = atoll(size.c_str());
 				fl->parent_ = target;
-				target->files_[name]=fl;
+				target->files_[fl->name_]=fl;
 			} else if (strcmp(node->Value(), "CommonPrefixes")==0)
 			{
 				name = node->FirstChild("Prefix")->
 						FirstChild()->ToText()->Value();
+				//Trim trailing '/'
+				std::string trimmed_name=name.substr(0, name.size()-1);
 				s3_directory_ptr dir(new s3_directory());
-				dir->name_ = extract_leaf(
-							name.substr(0, name.size()-1)); //Trim trailing '/'
-				dir->absolute_name_=derive(path, dir->name_);
+				dir->name_ = extract_leaf(trimmed_name);
+				dir->absolute_name_=derive(target->absolute_name_,
+										   dir->name_+"/");
 				dir->parent_ = target;
-				target->subdirs_[name] = dir;
+				target->subdirs_[dir->name_] = dir;
 			}
 
 			node=node->NextSibling();
