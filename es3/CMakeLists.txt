@@ -7,6 +7,7 @@ SET(es3_SRCS
 	common.cpp
 	compressor.cpp
 	connection.cpp
+	context.cpp
 	downloader.cpp
 	errors.cpp
 	main.cpp

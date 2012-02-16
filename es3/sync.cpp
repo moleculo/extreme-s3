@@ -257,6 +257,7 @@ bool synchronizer::create_schedule(bool check_mode)
 			remotes=*iter;
 	}
 
+	ctx_->reset(); //Reset CURLs
 	if (do_upload_)
 	{
 		process_upload(locals, remotes, remotes->absolute_name_, check_mode);

@@ -2,6 +2,7 @@
 #define CONNECTION_H
 
 #include "common.h"
+#include "context.h"
 #include <functional>
 #include <boost/weak_ptr.hpp>
 
@@ -76,8 +77,6 @@ namespace es3 {
 
 	class s3_connection
 	{
-		CURL *curl_;
-		char error_buffer_[256+1]; //CURL_ERROR_SIZE+1
 		const context_ptr conn_data_;
 		struct curl_slist *header_list_;
 	public:
@@ -107,18 +106,21 @@ namespace es3 {
 
 		std::string find_region(const std::string &bucket);
 	private:
-		void checked(int curl_code);
-		void check_for_errors(const std::string &curl_res);
-		void prepare(const std::string &verb,
-				  const s3_path &path,
-				  const header_map_t &opts=header_map_t());
+		void checked(curl_ptr_t curl, int curl_code);
+		void check_for_errors(curl_ptr_t curl,
+							  const std::string &curl_res);
+		void prepare(curl_ptr_t curl,
+					 const std::string &verb,
+					 const s3_path &path,
+					 const header_map_t &opts=header_map_t());
 
 		std::string sign(const std::string &str);
 		struct curl_slist* authenticate_req(struct curl_slist *,
 				const std::string &verb, const s3_path &path,
 				const header_map_t &opts);
 
-		void set_url(const s3_path &path, const std::string &args);
+		void set_url(curl_ptr_t curl,
+					 const s3_path &path, const std::string &args);
 	};
 
 }; //namespace es3

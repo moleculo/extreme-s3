@@ -38,57 +38,44 @@ s3_path es3::parse_path(const std::string &url)
 		res.path_="/";
 	}
 
+	if (res.path_.find("//")!=std::string::npos)
+		err(errFatal) << "Malformed S3 URL - invalid '//' combination: " << url;
 	return res;
 }
 
-std::mutex tmt;
-std::vector<CURL*> curls;
-
 s3_connection::s3_connection(const context_ptr &conn_data)
-	: curl_(0), conn_data_(conn_data), header_list_()
+	: conn_data_(conn_data), header_list_()
 {
-	guard_t lock(tmt);
-	if (curls.empty())
-	{
-		curl_=curl_easy_init();
-		if (!curl_)
-			err(errFatal) << "can't init CURL";
-//		curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, error_buffer_);
-//		memset(error_buffer_, 0, CURL_ERROR_SIZE);
-	} else
-	{
-		curl_=curls.back();
-		curls.pop_back();
-	}
 }
 
 s3_connection::~s3_connection()
 {
-	guard_t lock(tmt);
-	//curl_easy_cleanup(curl_);
-	curls.push_back(curl_);
 	if (header_list_)
 		curl_slist_free_all(header_list_);
 }
 
-void s3_connection::checked(int curl_code)
+void s3_connection::checked(curl_ptr_t curl, int curl_code)
 {
 	if (curl_code!=CURLE_OK)
 	{
-		if (strlen(error_buffer_)!=0)
+		char* error_buffer=conn_data_->err_buf_for(curl);
+		assert(error_buffer);
+		if (strlen(error_buffer)!=0)
 		{
-			assert(strlen(error_buffer_)<=CURL_ERROR_SIZE);
-			err(errWarn) << "curl error: " << error_buffer_;
+			assert(strlen(error_buffer)<=CURL_ERROR_SIZE);
+			err(errWarn) << "curl error: " << error_buffer;
 		} else
 			err(errWarn) << "curl error: "
 						 << curl_easy_strerror((CURLcode)curl_code);
 	}
 }
 
-void s3_connection::check_for_errors(const std::string &curl_res)
+void s3_connection::check_for_errors(curl_ptr_t curl,
+									 const std::string &curl_res)
 {
 	long code=400;
-	checked(curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &code));
+	checked(curl,
+			curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &code));
 	if (code<400)
 		return;
 
@@ -117,22 +104,23 @@ void s3_connection::check_for_errors(const std::string &curl_res)
 		err(err_level) << "" << def_error;
 }
 
-void s3_connection::prepare(const std::string &verb,
-		  const s3_path &path,
-		  const header_map_t &opts)
+void s3_connection::prepare(curl_ptr_t curl,
+							const std::string &verb,
+							const s3_path &path,
+							const header_map_t &opts)
 {
 	s3_path cur_path=path;
 	if (cur_path.path_.empty())
 		cur_path.path_.append("/");
-
-	curl_easy_reset(curl_);
-	curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, error_buffer_);
-	memset(error_buffer_, 0, CURL_ERROR_SIZE);
+	curl_easy_reset(curl.get());
+	//memset(conn_data_->err_buf_for(curl.get()) , 0, CURL_ERROR_SIZE);
 
 	//Set HTTP verb
-	checked(curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, verb.c_str()));
+	checked(curl,
+			curl_easy_setopt(curl.get(), CURLOPT_CUSTOMREQUEST, verb.c_str()));
 	//Do not do any automatic decompression
-	checked(curl_easy_setopt(curl_, CURLOPT_ENCODING , 0));
+	checked(curl,
+			curl_easy_setopt(curl.get(), CURLOPT_ENCODING , 0));
 
 	if (header_list_)
 	{
@@ -148,14 +136,18 @@ void s3_connection::prepare(const std::string &verb,
 	}
 
 	header_list_ = authenticate_req(header_list_, verb, cur_path, opts);
-	checked(curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, header_list_));
-	checked(curl_easy_setopt(curl_, CURLOPT_BUFFERSIZE, 16384*16));
+	checked(curl,
+			curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list_));
+	checked(curl,
+			curl_easy_setopt(curl.get(), CURLOPT_BUFFERSIZE, 16384*16));
 
-	checked(curl_easy_setopt(curl_, CURLOPT_NOSIGNAL, 1));
-	set_url(path, "");
+	checked(curl,
+			curl_easy_setopt(curl.get(), CURLOPT_NOSIGNAL, 1));
+	set_url(curl, path, "");
 }
 
-void s3_connection::set_url(const s3_path &path, const std::string &args)
+void s3_connection::set_url(curl_ptr_t curl,
+							const s3_path &path, const std::string &args)
 {
 	s3_path cur_path=path;
 	if (cur_path.path_.empty())
@@ -165,12 +157,10 @@ void s3_connection::set_url(const s3_path &path, const std::string &args)
 	url.append(cur_path.bucket_);
 	url.append(".").append(cur_path.zone_);
 	url.append(".amazonaws.com");
-//	std::string ugly=cur_path.path_;
-//	boost::replace_all(ugly, " ", "%20");
-//	url.append(ugly);
 	url.append(cur_path.path_);
 	url.append(args);
-	checked(curl_easy_setopt(curl_, CURLOPT_URL, url.c_str()));
+	checked(curl,
+			curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str()));
 }
 
 curl_slist* s3_connection::authenticate_req(struct curl_slist * header_list,
@@ -241,13 +231,16 @@ std::string s3_connection::read_fully(const std::string &verb,
 									  const header_map_t &opts)
 {
 	std::string res;
-	prepare(verb, path, opts);
+	curl_ptr_t curl=conn_data_->get_curl(path.zone_, path.bucket_);
+	prepare(curl, verb, path, opts);
 	if (!args.empty())
-		set_url(path, args);
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender));
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &res));
-	checked(curl_easy_perform(curl_));
-	check_for_errors(res);
+		set_url(curl, path, args);
+	checked(curl, curl_easy_setopt(
+				curl.get(), CURLOPT_WRITEFUNCTION, &string_appender));
+	checked(curl,curl_easy_setopt(
+				curl.get(), CURLOPT_WRITEDATA, &res));
+	checked(curl,curl_easy_perform(curl.get()));
+	check_for_errors(curl, res);
 	return res;
 }
 
@@ -415,12 +408,14 @@ file_desc s3_connection::find_mtime_and_size(const s3_path &path)
 	result.mode_ = 0664;
 	result.remote_size_=result.raw_size_=0;
 
-	prepare("HEAD", path);
+	curl_ptr_t curl=conn_data_->get_curl(path.zone_, path.bucket_);
+	prepare(curl, "HEAD", path);
 	//last-modified
-	checked(curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &::find_mtime));
-	checked(curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &result));
-	checked(curl_easy_setopt(curl_, CURLOPT_NOBODY, 1));
-	checked(curl_easy_perform(curl_));
+	checked(curl, curl_easy_setopt(
+				curl.get(), CURLOPT_HEADERFUNCTION, &::find_mtime));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_HEADERDATA, &result));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 1));
+	checked(curl, curl_easy_perform(curl.get()));
 
 	if (result.raw_size_==0)
 		result.raw_size_=result.remote_size_;
@@ -475,22 +470,25 @@ std::string s3_connection::upload_data(const s3_path &path,
 	std::string etag;
 	buf_data read_data(data, size);
 
-	prepare("PUT", path, opts);
-	checked(curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, &find_etag));
-	checked(curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &etag));
-	checked(curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1));
-	checked(curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE,
+	curl_ptr_t curl=conn_data_->get_curl(path.zone_, path.bucket_);
+	prepare(curl, "PUT", path, opts);
+	checked(curl, curl_easy_setopt(curl.get(),
+								   CURLOPT_HEADERFUNCTION, &find_etag));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_HEADERDATA, &etag));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE_LARGE,
 							 uint64_t(size)));
-	checked(curl_easy_setopt(curl_, CURLOPT_READFUNCTION,
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION,
 							 &buf_data::read_func));
-	checked(curl_easy_setopt(curl_, CURLOPT_READDATA, &read_data));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_READDATA, &read_data));
 
 	std::string result;
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender));
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &result));
+	checked(curl, curl_easy_setopt(curl.get(),
+								   CURLOPT_WRITEFUNCTION, &string_appender));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &result));
 
-	checked(curl_easy_perform(curl_));
-	check_for_errors(result);
+	checked(curl, curl_easy_perform(curl.get()));
+	check_for_errors(curl, result);
 
 	if (!etag.empty() &&
 			strcasecmp(etag.c_str(), ("\""+read_data.get_md5()+"\"").c_str()))
@@ -502,7 +500,6 @@ std::string s3_connection::upload_data(const s3_path &path,
 std::string s3_connection::initiate_multipart(
 	const s3_path &path, const header_map_t &opts)
 {
-	set_url(path, "");
 	s3_path up_path =path;
 	up_path.path_+="?uploads";
 	std::string list=read_fully("POST", up_path, "", opts);
@@ -541,22 +538,26 @@ std::string s3_connection::complete_multipart(const s3_path &path,
 
 	s3_path up_path=path;
 	up_path.path_+="?uploadId="+upload_id;
-	prepare("POST", up_path);
+
+	curl_ptr_t curl=conn_data_->get_curl(path.zone_, path.bucket_);
+	prepare(curl, "POST", up_path);
 
 	buf_data data_params(data.c_str(), data.size());
-	checked(curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1));
-	checked(curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE,
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE_LARGE,
 							 uint64_t(data.size())));
-	checked(curl_easy_setopt(curl_, CURLOPT_READFUNCTION,
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION,
 							 &buf_data::read_func));
-	checked(curl_easy_setopt(curl_, CURLOPT_READDATA, &data_params));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_READDATA, &data_params));
 
 	std::string read_data;
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, &string_appender));
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &read_data));
+	checked(curl, curl_easy_setopt(
+				curl.get(), CURLOPT_WRITEFUNCTION, &string_appender));
+	checked(curl, curl_easy_setopt(
+				curl.get(), CURLOPT_WRITEDATA, &read_data));
 
-	checked(curl_easy_perform(curl_));
-	check_for_errors(read_data);
+	checked(curl, curl_easy_perform(curl.get()));
+	check_for_errors(curl, read_data);
 
 	VLOG(2) << "Completed multipart of " << path;
 	return read_data;
@@ -597,20 +598,23 @@ public:
 void s3_connection::download_data(const s3_path &path,
 	uint64_t offset, char *data, size_t size, const header_map_t& opts)
 {
-	prepare("GET", path, opts);
-	curl_easy_setopt(curl_, CURLOPT_INFILESIZE_LARGE, uint64_t(size));
+	curl_ptr_t curl=conn_data_->get_curl(path.zone_, path.bucket_);
+
+	prepare(curl, "GET", path, opts);
+	checked(curl, curl_easy_setopt(
+				curl.get(), CURLOPT_INFILESIZE_LARGE, uint64_t(size)));
 
 	std::string range=int_to_string(offset)+"-"+
 			int_to_string(offset+size-1);
-	curl_easy_setopt(curl_, CURLOPT_RANGE, range.c_str());
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_RANGE, range.c_str()));
 
 	write_data wd(data, size);
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION,
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION,
 							 &write_data::write_func));
-	checked(curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &wd));
+	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &wd));
 
-	checked(curl_easy_perform(curl_));
-	check_for_errors(std::string(data,
+	checked(curl, curl_easy_perform(curl.get()));
+	check_for_errors(curl, std::string(data,
 								 std::min(wd.written(), size_t(1024))));
 
 	if (wd.written()!=size)
@@ -626,7 +630,6 @@ std::string s3_connection::find_region(const std::string &bucket)
 	path.path_ = "/?location";
 
 	std::string reg_data=read_fully("GET", path);
-	check_for_errors(reg_data);
 
 	TiXmlDocument doc;
 	doc.Parse(reg_data.c_str());
