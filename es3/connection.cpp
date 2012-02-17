@@ -310,14 +310,17 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 						FirstChild()->ToText()->Value();
 				std::string size = node->FirstChild("Size")->
 						FirstChild()->ToText()->Value();
-				//deconstruct_file(res, name, size);
-
-				s3_file_ptr fl(new s3_file());
-				fl->name_ = extract_leaf(name);
-				fl->absolute_name_=derive(target->absolute_name_, fl->name_);
-				fl->size_ = atoll(size.c_str());
-				fl->parent_ = target;
-				target->files_[fl->name_]=fl;
+				if (*name.rbegin()!='/')
+				{
+					//Yes, Virginia, there are directory-like-files in S3
+					s3_file_ptr fl(new s3_file());
+					fl->name_ = extract_leaf(name);
+					fl->absolute_name_=derive(target->absolute_name_,
+											  fl->name_);
+					fl->size_ = atoll(size.c_str());
+					fl->parent_ = target;
+					target->files_[fl->name_]=fl;
+				}
 			} else if (strcmp(node->Value(), "CommonPrefixes")==0)
 			{
 				name = node->FirstChild("Prefix")->
