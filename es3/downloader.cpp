@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <fstream>
+#include "commands.h"
+#include "scope_guard.h"
 
 using namespace es3;
 using namespace boost::filesystem;
@@ -239,4 +241,71 @@ void file_downloader::operator()(agenda_ptr agenda)
 		sync_task_ptr dl(new download_segment_task(dc, f));
 		agenda->schedule(dl);
 	}
+}
+
+int es3::do_cat(context_ptr context, const stringvec& params,
+		 agenda_ptr ag, bool help)
+{
+	if (help)
+	{
+		std::cout << "Cat syntax: es3 cat <PATHS>\n"
+				  << "where <PATHS> are:\n"
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/fl format)"
+				  << std::endl << std::endl;
+		return 0;
+	}
+	if (params.empty())
+	{
+		std::cerr << "ERR: at least one <PATH> must be specified.\n";
+		return 2;
+	}
+
+	for(auto iter=params.begin();iter!=params.end();++iter)
+	{
+		bf::path tmp_nm = context->scratch_dir_ /
+				bf::unique_path("scratchy-cat-%%%%-%%%%-%%%%-%%%%-dl");
+		ON_BLOCK_EXIT(unlink, tmp_nm.c_str());
+		
+		s3_path remote=parse_path(*iter);
+		s3_connection conn(context);
+		std::string region=conn.find_region(remote.bucket_);
+		remote.zone_=region;
+				
+		sync_task_ptr task(new file_downloader(context, tmp_nm, remote, false));	
+		ag->schedule(task);
+		size_t failed=ag->run();
+		if (failed)
+			return 6;
+		
+		if (ag->tasks_count())
+		{
+			ag->print_epilog(); //Print stats, so they're at least visible
+			std::cerr << "ERR: ";
+			ag->print_queue();
+			return 4;
+		}
+		
+		handle_t fl(open(tmp_nm.c_str(), O_RDWR) 
+					| libc_die2("Failed to open "+tmp_nm.string()));
+		
+		fflush(stdout);
+		while(true)
+		{
+			char buf[16385];
+			int res=read(fl.get(), buf, 16384);
+			if (res<0)
+				res | libc_die;
+			if (res==0)
+				break;
+			
+			int written=write(1, buf, res);
+			if (written!=res)
+			{
+				std::cerr << "ERR: failed to write "<<res<<" bytes to stdout";
+				return 5;
+			}
+		}
+	}
+	
+	return 0;
 }

@@ -129,7 +129,8 @@ int main(int argc, char **argv)
 	subcommands_map["test"] = boost::bind(&do_test, _1, _2, _3, _4);
 	subcommands_map["touch"] = boost::bind(&do_touch, _1, _2, _3, _4);
 	subcommands_map["rm"] = boost::bind(&do_rm, _1, _2, _3, _4);
-
+	subcommands_map["cat"] = boost::bind(&do_cat, _1, _2, _3, _4);
+	
 	stringvec subcommands;
 	for(auto iter=subcommands_map.begin();iter!=subcommands_map.end();++iter)
 		subcommands.push_back(iter->first);
@@ -247,6 +248,11 @@ int main(int argc, char **argv)
 	if (thread_num<=0)
 		thread_num=sysconf(_SC_NPROCESSORS_ONLN)*6+40;
 
+	if (cur_subcommand=="cat")
+	{
+		no_progress=no_stats=true; //A special hack
+	}
+	
 	agenda_ptr ag(new agenda(thread_num, cpu_threads, io_threads,
 							 no_progress, no_stats,
 							 segment_size, segments));

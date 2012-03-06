@@ -19,6 +19,9 @@ namespace es3 {
 	int do_rm(context_ptr context, const stringvec& params,
 			 agenda_ptr ag, bool help);
 
+	int do_cat(context_ptr context, const stringvec& params,
+			 agenda_ptr ag, bool help);
+	
 }; //namespace es3
 
 #endif //COMMANDS_H

@@ -420,6 +420,11 @@ file_desc s3_connection::find_mtime_and_size(const s3_path &path)
 	checked(curl, curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 1));
 	checked(curl, curl_easy_perform(curl.get()));
 
+	long code=404;
+	checked(curl, curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &code));
+	if (code==404)
+		err(errFatal) << "Document not found at: " << path;
+	
 	if (result.raw_size_==0)
 		result.raw_size_=result.remote_size_;
 	return result;

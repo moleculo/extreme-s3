@@ -1,7 +1,6 @@
 #include "commands.h"
 #include "connection.h"
 #include "sync.h"
-#include "uploader.h"
 #include <iostream>
 #include <boost/program_options.hpp>
 
@@ -223,41 +222,4 @@ int es3::do_touch(context_ptr context, const stringvec& params,
 	{
 		return system(("touch "+tgt).c_str());
 	}
-}
-
-int es3::do_rm(context_ptr context, const stringvec& params,
-		 agenda_ptr ag, bool help)
-{
-	if (help)
-	{
-		std::cout << "Rm syntax: es3 rm <PATH>\n"
-				  << "where <PATH> is either:\n"
-				  << "\t - Amazon S3 storage (in s3://<bucket>/path/fl format)"
-				  << std::endl << std::endl;
-		return 0;
-	}
-	if (params.size()!=1)
-	{
-		std::cerr << "ERR: <PATH> must be specified.\n";
-		return 2;
-	}
-
-	std::string tgt = params.at(0);
-	s3_path path = parse_path(tgt);
-	s3_connection conn(context);
-	std::string region=conn.find_region(path.bucket_);
-	path.zone_=region;
-
-	sync_task_ptr task(new remote_file_deleter(context, path));
-	ag->schedule(task);
-	ag->run();
-	if (ag->tasks_count())
-	{
-		ag->print_epilog(); //Print stats, so they're at least visible
-		std::cerr << "ERR: ";
-		ag->print_queue();
-		return 4;
-	}
-
-	return 0;
 }
