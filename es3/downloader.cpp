@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <fstream>
+#include <iostream>
 #include "commands.h"
 #include "scope_guard.h"
 
