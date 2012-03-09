@@ -19,7 +19,8 @@ namespace es3 {
 		time_t mtime_;
 		uint64_t raw_size_, remote_size_;
 		mode_t mode_;
-		bool compressed;
+		bool compressed_;
+		bool found_;
 	};
 
 	struct s3_path

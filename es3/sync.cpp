@@ -215,7 +215,8 @@ public:
 	}
 };
 
-bool synchronizer::create_schedule(bool check_mode)
+bool synchronizer::create_schedule(bool check_mode, bool delete_mode, 
+								   bool non_recursive_delete)
 {
 	//Retrieve the list of remote files
 	s3_connection conn(ctx_);
@@ -223,6 +224,7 @@ bool synchronizer::create_schedule(bool check_mode)
 	local_dir_ptr locals;
 	for(auto iter=local_.begin();iter!=local_.end();++iter)
 	{
+		assert(!delete_mode);
 		local_dir_ptr cur(build_local_dir(*iter, this, do_upload_));
 		if (locals)
 			merge_to_left<local_dir_ptr, local_file_ptr>(locals, cur);
@@ -235,7 +237,7 @@ bool synchronizer::create_schedule(bool check_mode)
 	for(auto iter=remote_.begin();iter!=remote_.end();++iter)
 	{
 		s3_directory_ptr cur_root=conn.list_files_shallow(
-				*iter, s3_directory_ptr(), !do_upload_);
+				*iter, s3_directory_ptr(), !do_upload_ || delete_mode);
 
 		for(auto iter=cur_root->subdirs_.begin();
 			iter!=cur_root->subdirs_.end();++iter)
@@ -248,6 +250,14 @@ bool synchronizer::create_schedule(bool check_mode)
 	agenda_->run();
 	VLOG(1)<<"Preparing file list - done.";
 
+	ctx_->reset(); //Reset CURLs	
+	if (delete_mode)
+	{
+		for(auto iter=remote_lists.begin();iter!=remote_lists.end();++iter)
+			delete_possibly_recursive(*iter, non_recursive_delete);
+		return true;
+	}
+	
 	s3_directory_ptr remotes;
 	for(auto iter=remote_lists.begin();iter!=remote_lists.end();++iter)
 	{
@@ -257,7 +267,6 @@ bool synchronizer::create_schedule(bool check_mode)
 			remotes=*iter;
 	}
 
-	ctx_->reset(); //Reset CURLs
 	if (do_upload_)
 	{
 		process_upload(locals, remotes, remotes->absolute_name_, check_mode);
@@ -269,16 +278,22 @@ bool synchronizer::create_schedule(bool check_mode)
 	}
 }
 
-void synchronizer::delete_recursive(s3_directory_ptr dir)
+void synchronizer::delete_possibly_recursive(s3_directory_ptr dir, 
+											 bool non_recursive)
 {
 	for(auto iter=dir->files_.begin();iter!=dir->files_.end();++iter)
 	{
+		if (!check_included(iter->second->absolute_name_.path_))
+			continue;		
 		sync_task_ptr task
 				(new remote_file_deleter(ctx_, iter->second->absolute_name_));
 		agenda_->schedule(task);
 	}
-	for(auto iter=dir->subdirs_.begin();iter!=dir->subdirs_.end();++iter)
-		delete_recursive(iter->second);
+	if (!non_recursive)
+	{
+		for(auto iter=dir->subdirs_.begin();iter!=dir->subdirs_.end();++iter)
+			delete_possibly_recursive(iter->second, false);
+	}
 }
 
 void synchronizer::process_upload(local_dir_ptr locals,
@@ -308,7 +323,7 @@ void synchronizer::process_upload(local_dir_ptr locals,
 		{
 			if (delete_missing_)
 			{
-				delete_recursive(remotes->subdirs_[file->name_]);
+				delete_possibly_recursive(remotes->subdirs_[file->name_], false);
 				sync_task_ptr task(new file_uploader(
 					ctx_, file->absolute_name_, cur_remote_path));
 				agenda_->schedule(task);
@@ -366,7 +381,7 @@ void synchronizer::process_upload(local_dir_ptr locals,
 			agenda_->schedule(task);
 		}
 		for(auto iter=unseen_dirs.begin();iter!=unseen_dirs.end();++iter)
-			delete_recursive(iter->second);
+			delete_possibly_recursive(iter->second, false);
 	}
 }
 
@@ -382,60 +397,63 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 			unseen[f->first]=f->second->absolute_name_;
 	}
 
-	for(auto iter=remotes->files_.begin(); iter!=remotes->files_.end();++iter)
+	if (remotes)
 	{
-		s3_file_ptr file = iter->second;
-		unseen.erase(file->name_);
-		if (!check_included(file->absolute_name_.path_))
-			continue;
-
-		bf::path cur_local_path = local_path / file->name_;
-		bool shadowed=locals && locals->subdirs_.count(file->name_);
-		if (shadowed && !delete_missing_)
+		for(auto iter=remotes->files_.begin(); iter!=remotes->files_.end();++iter)
 		{
-			VLOG(0) << "Remote file "<< file->absolute_name_ << " "
-					<< "is shadowed by a local directory, "
-					<< "but we're not allowed to remove it.";
-		} else
-		{
-			if (!check_mode || !locals->files_.count(file->name_))
+			s3_file_ptr file = iter->second;
+			unseen.erase(file->name_);
+			if (!check_included(file->absolute_name_.path_))
+				continue;
+	
+			bf::path cur_local_path = local_path / file->name_;
+			bool shadowed=locals && locals->subdirs_.count(file->name_);
+			if (shadowed && !delete_missing_)
 			{
-				sync_task_ptr task(new file_downloader(
-					ctx_, cur_local_path, file->absolute_name_, shadowed));
-				agenda_->schedule(task);
+				VLOG(0) << "Remote file "<< file->absolute_name_ << " "
+						<< "is shadowed by a local directory, "
+						<< "but we're not allowed to remove it.";
+			} else
+			{
+				if (!check_mode || !locals->files_.count(file->name_))
+				{
+					sync_task_ptr task(new file_downloader(
+						ctx_, cur_local_path, file->absolute_name_, shadowed));
+					agenda_->schedule(task);
+				}
 			}
 		}
-	}
-
-	for(auto iter=remotes->subdirs_.begin(); iter!=remotes->subdirs_.end();++iter)
-	{
-		s3_directory_ptr dir = iter->second;
-		unseen.erase(dir->name_);
-
-		bf::path cur_local_path = local_path / dir->name_;
-
-		local_dir_ptr new_dir;
-		if (locals)
-			new_dir=try_get(locals->subdirs_, dir->name_);
-
-		bool shadowed=locals && locals->files_.count(dir->name_) ;
-		if (shadowed && !delete_missing_)
+	
+		for(auto iter=remotes->subdirs_.begin(); iter!=remotes->subdirs_.end();++iter)
 		{
-			VLOG(0) << "Remote dir "<< dir->absolute_name_ << " "
-					<< "is shadowed by a local file, but we're "
-					<< "not allowed to remove it.";
-		} else
-		{
-			if (shadowed)
-				local_file_deleter(cur_local_path)(agenda_ptr());
-
-			if (!new_dir)
+			s3_directory_ptr dir = iter->second;
+			unseen.erase(dir->name_);
+	
+			bf::path cur_local_path = local_path / dir->name_;
+	
+			local_dir_ptr new_dir;
+			if (locals)
+				new_dir=try_get(locals->subdirs_, dir->name_);
+	
+			bool shadowed=locals && locals->files_.count(dir->name_) ;
+			if (shadowed && !delete_missing_)
 			{
-				int res=mkdir(cur_local_path.c_str(), 0755);
-				if (res && errno!=EEXIST)
-					res | libc_die2("Failed to create "+cur_local_path.string());
+				VLOG(0) << "Remote dir "<< dir->absolute_name_ << " "
+						<< "is shadowed by a local file, but we're "
+						<< "not allowed to remove it.";
+			} else
+			{
+				if (shadowed)
+					local_file_deleter(cur_local_path)(agenda_ptr());
+	
+				if (!new_dir)
+				{
+					int res=mkdir(cur_local_path.c_str(), 0755);
+					if (res && errno!=EEXIST)
+						res | libc_die2("Failed to create "+cur_local_path.string());
+				}
+				process_downloads(dir, new_dir, cur_local_path, check_mode);
 			}
-			process_downloads(dir, new_dir, cur_local_path, check_mode);
 		}
 	}
 

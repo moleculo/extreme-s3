@@ -184,6 +184,9 @@ void file_downloader::operator()(agenda_ptr agenda)
 	//remote side
 	s3_connection up(conn_);
 	file_desc mod=up.find_mtime_and_size(remote_);
+	if (!mod.found_)
+		err(errFatal) << "Document not found at: " << remote_;
+	
 	if(mod.mtime_)
 	{
 		if (mod.mtime_==mtime && mod.raw_size_==file_sz)
@@ -211,14 +214,14 @@ void file_downloader::operator()(agenda_ptr agenda)
 	dc->segments_read_=0;
 	dc->remote_size_=mod.remote_size_;
 	dc->raw_size_=mod.raw_size_;
-	dc->compressed_=mod.compressed;
+	dc->compressed_=mod.compressed_;
 
 	dc->remote_path_=remote_;
 	dc->target_file_=path_;
 
 	VLOG(2) << "Downloading " << path_ << " from " << remote_;
 
-	if (mod.compressed)
+	if (mod.compressed_)
 	{
 		path tmp_nm = conn_->scratch_dir_ /
 				bf::unique_path("scratchy-%%%%-%%%%-%%%%-%%%%-dl");

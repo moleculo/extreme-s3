@@ -26,7 +26,8 @@ namespace es3 {
 					 std::vector<s3_path> remote, stringvec local,
 					 bool do_upload, bool delete_missing,
 					 const stringvec &included, const stringvec &excluded);
-		bool create_schedule(bool check_mode);
+		bool create_schedule(bool check_mode, bool delete_mode, 
+							 bool non_recursive_delete);
 
 		bool check_included(const std::string &name);
 	private:
@@ -35,7 +36,7 @@ namespace es3 {
 		void process_downloads(s3_directory_ptr remotes, local_dir_ptr locals,
 							   const bf::path &local_path, bool check_mode);
 
-		void delete_recursive(s3_directory_ptr dir);
+		void delete_possibly_recursive(s3_directory_ptr dir, bool non_recursive);
 	};
 
 }; //namespace es3

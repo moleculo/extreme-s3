@@ -118,7 +118,7 @@ int es3::do_rsync(context_ptr context, const stringvec& params,
 	{
 		synchronizer sync(ag, context, remotes, locals, do_upload,
 						  delete_missing, included, excluded);
-		if (!sync.create_schedule(false))
+		if (!sync.create_schedule(false, false, false))
 		{
 			std::cerr << "ERR: <SOURCE> not found.\n";
 			return 2;
@@ -222,4 +222,107 @@ int es3::do_touch(context_ptr context, const stringvec& params,
 	{
 		return system(("touch "+tgt).c_str());
 	}
+}
+
+int es3::do_rm(context_ptr context, const stringvec& params,
+		 agenda_ptr ag, bool help)
+{
+	po::options_description opts("rm options", term_width);
+	stringvec included, excluded;
+	opts.add_options()
+		("recursive,r", "Delete recursively")
+		("exclude-path,E", po::value<stringvec>(&excluded),
+			"Exclude the paths matching the pattern from deletion. "
+			"If set, all matching files will be excluded even if they match "
+			"one of the 'include-path' rules.")
+		("include-path,I", po::value<stringvec>(&included),
+			"Include the paths matching the pattern for deletion. "
+			"If set, only the matching paths will be deleted")
+	;
+
+	if (help)
+	{
+		std::cout << "rm syntax: es3 rm [OPTIONS] <PATH>\n"
+				  << "where <PATH> is:\n"
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
+				  << std::endl << std::endl;
+		std::cout << opts;
+		return 0;
+	}
+
+	po::positional_options_description pos;
+	pos.add("<ARGS>", -1);
+
+	stringvec args;
+	opts.add_options()
+			("<ARGS>", po::value<stringvec>(&args)->multitoken()->required())
+	;
+	
+	po::variables_map vm;
+	try
+	{
+		po::store(po::command_line_parser(params)
+			.options(opts).positional(pos).run(), vm);
+		po::notify(vm);
+	} catch(const boost::program_options::error &err)
+	{
+		std::cerr << "ERR: Failed to parse configuration options. Error: "
+				  << err.what() << "\n"
+				  << "Use --help for help\n";
+		return 2;
+	}
+	if (args.size()<1)
+	{
+		std::cerr << "ERR: At least one <PATH> must be specified.\n";
+		return 2;
+	}
+
+	bool recursive=vm.count("recursive");
+	
+	s3_connection conn(context);
+	std::vector<s3_path> remotes;
+	stringvec locals;
+
+	for(auto iter=args.begin();iter!=args.end();++iter)
+	{
+		s3_path path = parse_path(*iter);
+		std::string region=conn.find_region(path.bucket_);
+		path.zone_=region;
+		remotes.push_back(path);
+	}
+
+	//We're abusing the synchronizer here by asking it to synchronize with
+	//an empty source path (remote or local) and delete missing files.
+	//The end result is fast and efficient RM.
+	for(int f=0;f<3;++f)
+	{
+		synchronizer sync(ag, context, remotes, locals, true, true, 
+						  included, excluded);
+		if (!sync.create_schedule(false, true, !recursive))
+		{
+			std::cerr << "ERR: <PATH> not found.\n";
+			return 2;
+		}
+
+		int res=ag->run();
+		if (res!=0)
+			return res;
+		if (!ag->tasks_count())
+		{
+			ag->print_epilog();
+			return 0;
+		}
+		//We still have pending tasks. Try once again.
+	}
+
+	if (ag->tasks_count())
+	{
+		ag->print_epilog(); //Print stats, so they're at least visible
+		std::cerr << "ERR: ";
+		ag->print_queue();
+		return 4;
+	}
+
+	return 0;
+	
 }

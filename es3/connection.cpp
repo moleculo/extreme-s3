@@ -387,7 +387,7 @@ static size_t find_mtime(void *ptr, size_t size, size_t nmemb, void *userdata)
 
 	std::string cmpr=find_header(ptr, size, nmemb, "x-amz-meta-compressed");
 	if (cmpr=="true")
-		info->compressed=true;
+		info->compressed_=true;
 
 	std::string md=find_header(ptr, size, nmemb, "x-amz-meta-file-mode");
 	if (!md.empty())
@@ -406,8 +406,8 @@ static size_t find_etag(void *ptr, size_t size, size_t nmemb, void *userdata)
 
 file_desc s3_connection::find_mtime_and_size(const s3_path &path)
 {
-	file_desc result;
-	result.compressed=false;
+	file_desc result={0};
+	result.compressed_=false;
 	result.mode_ = 0664;
 	result.remote_size_=result.raw_size_=0;
 
@@ -422,8 +422,7 @@ file_desc s3_connection::find_mtime_and_size(const s3_path &path)
 
 	long code=404;
 	checked(curl, curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &code));
-	if (code==404)
-		err(errFatal) << "Document not found at: " << path;
+	result.found_=code!=404;
 	
 	if (result.raw_size_==0)
 		result.raw_size_=result.remote_size_;
