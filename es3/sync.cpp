@@ -397,63 +397,60 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 			unseen[f->first]=f->second->absolute_name_;
 	}
 
-	if (remotes)
+	for(auto iter=remotes->files_.begin(); iter!=remotes->files_.end();++iter)
 	{
-		for(auto iter=remotes->files_.begin(); iter!=remotes->files_.end();++iter)
+		s3_file_ptr file = iter->second;
+		unseen.erase(file->name_);
+		if (!check_included(file->absolute_name_.path_))
+			continue;
+
+		bf::path cur_local_path = local_path / file->name_;
+		bool shadowed=locals && locals->subdirs_.count(file->name_);
+		if (shadowed && !delete_missing_)
 		{
-			s3_file_ptr file = iter->second;
-			unseen.erase(file->name_);
-			if (!check_included(file->absolute_name_.path_))
-				continue;
-	
-			bf::path cur_local_path = local_path / file->name_;
-			bool shadowed=locals && locals->subdirs_.count(file->name_);
-			if (shadowed && !delete_missing_)
+			VLOG(0) << "Remote file "<< file->absolute_name_ << " "
+					<< "is shadowed by a local directory, "
+					<< "but we're not allowed to remove it.";
+		} else
+		{
+			if (!check_mode || !locals->files_.count(file->name_))
 			{
-				VLOG(0) << "Remote file "<< file->absolute_name_ << " "
-						<< "is shadowed by a local directory, "
-						<< "but we're not allowed to remove it.";
-			} else
-			{
-				if (!check_mode || !locals->files_.count(file->name_))
-				{
-					sync_task_ptr task(new file_downloader(
-						ctx_, cur_local_path, file->absolute_name_, shadowed));
-					agenda_->schedule(task);
-				}
+				sync_task_ptr task(new file_downloader(
+					ctx_, cur_local_path, file->absolute_name_, shadowed));
+				agenda_->schedule(task);
 			}
 		}
-	
-		for(auto iter=remotes->subdirs_.begin(); iter!=remotes->subdirs_.end();++iter)
+	}
+
+	for(auto iter=remotes->subdirs_.begin(); iter!=remotes->subdirs_.end();++iter)
+	{
+		s3_directory_ptr dir = iter->second;
+		unseen.erase(dir->name_);
+
+		bf::path cur_local_path = local_path / dir->name_;
+
+		local_dir_ptr new_dir;
+		if (locals)
+			new_dir=try_get(locals->subdirs_, dir->name_);
+
+		bool shadowed=locals && locals->files_.count(dir->name_) ;
+		if (shadowed && !delete_missing_)
 		{
-			s3_directory_ptr dir = iter->second;
-			unseen.erase(dir->name_);
-	
-			bf::path cur_local_path = local_path / dir->name_;
-	
-			local_dir_ptr new_dir;
-			if (locals)
-				new_dir=try_get(locals->subdirs_, dir->name_);
-	
-			bool shadowed=locals && locals->files_.count(dir->name_) ;
-			if (shadowed && !delete_missing_)
+			VLOG(0) << "Remote dir "<< dir->absolute_name_ << " "
+					<< "is shadowed by a local file, but we're "
+					<< "not allowed to remove it.";
+		} else
+		{
+			if (shadowed)
+				local_file_deleter(cur_local_path)(agenda_ptr());
+
+			if (!new_dir)
 			{
-				VLOG(0) << "Remote dir "<< dir->absolute_name_ << " "
-						<< "is shadowed by a local file, but we're "
-						<< "not allowed to remove it.";
-			} else
-			{
-				if (shadowed)
-					local_file_deleter(cur_local_path)(agenda_ptr());
-	
-				if (!new_dir)
-				{
-					int res=mkdir(cur_local_path.c_str(), 0755);
-					if (res && errno!=EEXIST)
-						res | libc_die2("Failed to create "+cur_local_path.string());
-				}
-				process_downloads(dir, new_dir, cur_local_path, check_mode);
+				int res=mkdir(cur_local_path.c_str(), 0755);
+				if (res && errno!=EEXIST)
+					res | libc_die2("Failed to create "+cur_local_path.string());
 			}
+			process_downloads(dir, new_dir, cur_local_path, check_mode);
 		}
 	}
 
