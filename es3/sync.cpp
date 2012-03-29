@@ -281,6 +281,9 @@ bool synchronizer::create_schedule(bool check_mode, bool delete_mode,
 void synchronizer::delete_possibly_recursive(s3_directory_ptr dir, 
 											 bool non_recursive)
 {
+	if (non_recursive && !dir->subdirs_.empty())
+		err(errFatal) << "There are subdirectories present, but no --recursive flag is specified";
+
 	for(auto iter=dir->files_.begin();iter!=dir->files_.end();++iter)
 	{
 		if (!check_included(iter->second->absolute_name_.path_))
@@ -289,11 +292,8 @@ void synchronizer::delete_possibly_recursive(s3_directory_ptr dir,
 				(new remote_file_deleter(ctx_, iter->second->absolute_name_));
 		agenda_->schedule(task);
 	}
-	if (!non_recursive)
-	{
-		for(auto iter=dir->subdirs_.begin();iter!=dir->subdirs_.end();++iter)
-			delete_possibly_recursive(iter->second, false);
-	}
+	for(auto iter=dir->subdirs_.begin();iter!=dir->subdirs_.end();++iter)
+		delete_possibly_recursive(iter->second, false);
 }
 
 void synchronizer::process_upload(local_dir_ptr locals,
