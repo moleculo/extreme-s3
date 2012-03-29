@@ -5,7 +5,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 ENABLE_TESTING()
 
 #SET(CMAKE_BUILD_TYPE MinSizeRel)
-#SET(CMAKE_BUILD_TYPE RelWithDebInfo)
+SET(CMAKE_BUILD_TYPE RelWithDebInfo)
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Debug CACHE STRING
 	  "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
