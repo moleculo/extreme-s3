@@ -461,3 +461,18 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 								  new local_file_deleter(iter->second)));
 	}
 }
+
+s3_directory_ptr es3::schedule_recursive_walk(const s3_path &remote,
+											  context_ptr ctx, agenda_ptr ag)
+{
+	s3_connection conn(ctx);
+	s3_directory_ptr cur_root=conn.list_files_shallow(remote, 
+													  s3_directory_ptr(), true);
+	for(auto iter=cur_root->subdirs_.begin();
+		iter!=cur_root->subdirs_.end();++iter)
+	{
+		ag->schedule(sync_task_ptr(
+							  new list_subdir_task(iter->second, ctx)));
+	}
+	return cur_root;	
+}

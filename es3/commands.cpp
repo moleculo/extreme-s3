@@ -326,3 +326,73 @@ int es3::do_rm(context_ptr context, const stringvec& params,
 	return 0;
 	
 }
+
+struct stat_struct
+{
+	uint64_t size_, file_num_, dir_num_;
+};
+
+static void get_size(s3_directory_ptr cur, stat_struct *out)
+{
+	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
+	{
+		out->size_+=iter->second->size_;
+		out->file_num_++;
+	}
+	
+	for(auto iter=cur->subdirs_.begin(); iter!=cur->subdirs_.end();++iter)
+	{
+		out->dir_num_++;
+		get_size(iter->second, out);
+	}
+}
+
+int es3::do_du(context_ptr context, const stringvec& params,
+		 agenda_ptr ag, bool help)
+{
+	if (help)
+	{
+		std::cout << "Test syntax: es3 du <PATH>\n"
+				  << "where <PATH> is:\n"					 
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
+				  << std::endl << std::endl;
+		return 0;
+	}
+	if (params.size()!=1)
+	{
+		std::cerr << "ERR: <PATH> must be specified.\n";
+		return 2;
+	}
+	
+	std::string tgt = params.at(0);		
+	s3_connection conn(context);
+
+	s3_path path = parse_path(tgt);
+	std::string region=conn.find_region(path.bucket_);
+	path.zone_=region;
+
+	//Do recursive ls
+	s3_directory_ptr cur_root=schedule_recursive_walk(path, context, ag);
+	
+	int res=ag->run();
+	if (res!=0)
+		return res;
+	
+	if (ag->tasks_count())
+	{
+		ag->print_epilog(); //Print stats, so they're at least visible
+		std::cerr << "ERR: ";
+		ag->print_queue();
+		return 4;
+	}
+	
+	//Calculate total size and print it
+	stat_struct st={0};
+	get_size(cur_root, &st);
+	
+	std::cout<<"Total files: " << st.file_num_ << std::endl;
+	std::cout<<"Total directories: " << st.dir_num_ << std::endl;
+	std::cout<<"Total size: " << st.size_ << std::endl;
+
+	return 0;
+}
