@@ -39,6 +39,8 @@ namespace es3 {
 		void delete_possibly_recursive(s3_directory_ptr dir, bool non_recursive);
 	};
 
+	s3_directory_ptr schedule_recursive_walk(const s3_path &remote, 
+											 context_ptr ctx, agenda_ptr ag);
 }; //namespace es3
 
 #endif //UPLOADER_H
