@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <boost/bind.hpp>
 #include "compressor.h"
+#include "mimes.h"
 
 #define MIN_PART_SIZE (16*1024*1024)
 #define MIN_ALLOWED_PART_SIZE (16*1024*1024)
@@ -242,6 +243,7 @@ void file_uploader::operator()(agenda_ptr agenda)
 	header_map_t hmap;
 	hmap["x-amz-meta-compressed"] = do_compress ? "true" : "false";
 	//hmap["Content-Type"] = "application/x-binary";
+	hmap["Content-Type"] = find_mime(path_.extension().c_str());
 	if (do_compress)
 		hmap["Content-Encoding"] = "gzip";
 	hmap["x-amz-meta-last-modified"] = int_to_string(mtime);

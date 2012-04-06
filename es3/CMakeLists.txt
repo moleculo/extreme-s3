@@ -11,6 +11,7 @@ SET(es3_SRCS
 	downloader.cpp
 	errors.cpp
 	main.cpp
+	mimes.cpp
 
 	uploader.cpp
 	sync.cpp
@@ -24,6 +25,7 @@ SET(es3_INCLUDES
 	context.h
 	downloader.h
 	errors.h
+	mimes.h
 	pattern_match.hpp
 	scope_guard.h
 	uploader.h

@@ -9,6 +9,7 @@
 #include <sys/ioctl.h>
 #include <boost/bind.hpp>
 #include <curl/curl.h>
+#include "mimes.h"
 
 using namespace es3;
 namespace po = boost::program_options;
@@ -62,6 +63,7 @@ int main(int argc, char **argv)
 	ioctl(0, TIOCGWINSZ, &w);
 	term_width=(w.ws_col==0)? 80 : w.ws_col;
 
+	init_mimes();
 	context_ptr cd(new conn_context());
 
 	po::options_description generic("Generic options", term_width);
