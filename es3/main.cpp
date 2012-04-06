@@ -130,6 +130,7 @@ int main(int argc, char **argv)
 	subcommands_map["touch"] = boost::bind(&do_touch, _1, _2, _3, _4);
 	subcommands_map["rm"] = boost::bind(&do_rm, _1, _2, _3, _4);
 	subcommands_map["du"] = boost::bind(&do_du, _1, _2, _3, _4);
+	subcommands_map["ls"] = boost::bind(&do_ls, _1, _2, _3, _4);
 	subcommands_map["cat"] = boost::bind(&do_cat, _1, _2, _3, _4);
 	
 	stringvec subcommands;

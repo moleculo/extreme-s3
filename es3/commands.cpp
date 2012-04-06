@@ -396,3 +396,53 @@ int es3::do_du(context_ptr context, const stringvec& params,
 
 	return 0;
 }
+
+int es3::do_ls(context_ptr context, const stringvec& params,
+		 agenda_ptr ag, bool help)
+{
+	if (help)
+	{
+		std::cout << "Test syntax: es3 ls <PATH>\n"
+				  << "where <PATH> is:\n"					 
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
+				  << std::endl << std::endl;
+		return 0;
+	}
+	if (params.size()!=1)
+	{
+		std::cerr << "ERR: <PATH> must be specified.\n";
+		return 2;
+	}
+	
+	std::string tgt = params.at(0);		
+	s3_connection conn(context);
+
+	s3_path path = parse_path(tgt);
+	std::string region=conn.find_region(path.bucket_);
+	path.zone_=region;
+
+	//Do non-recursive ls
+	s3_directory_ptr cur=conn.list_files_shallow(
+				path, s3_directory_ptr(), true);
+	size_t files=0, dirs=0;
+	uint64_t total=0;
+	for(auto iter=cur->subdirs_.begin(); iter!=cur->subdirs_.end();++iter)
+	{
+		std::cout << "\tDIR\t" << iter->second->absolute_name_ << std::endl;
+		dirs++;
+	}
+	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
+	{
+		std::cout << "\t"<< iter->second->size_ 
+				  << "\t" << iter->second->absolute_name_ << std::endl;
+		files++;
+		total+=iter->second->size_;
+	}
+	
+	
+	std::cout<<"Total files: " << files << std::endl;
+	std::cout<<"Total directories: " << dirs << std::endl;
+	std::cout<<"Total size: " << total << std::endl;
+
+	return 0;
+}
