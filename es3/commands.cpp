@@ -463,38 +463,51 @@ int es3::do_ls(context_ptr context, const stringvec& params,
 		dirs++;
 	}
 	
-
-	std::map<s3_path, file_desc> desc_map;
-	std::mutex desc_mtx;	
-	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
+	if (cur->files_.size()>10)
 	{
-		sync_task_ptr tsk(new get_file_info(iter->second->absolute_name_,
-											context, desc_map, desc_mtx));
-		ag->schedule(tsk);
-	}
-	int res=ag->run();
-	if (res!=0)
-		return res;
-	
-	if (ag->tasks_count())
+		std::map<s3_path, file_desc> desc_map;
+		std::mutex desc_mtx;	
+		for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
+		{
+			sync_task_ptr tsk(new get_file_info(iter->second->absolute_name_,
+												context, desc_map, desc_mtx));
+			ag->schedule(tsk);
+		}
+		int res=ag->run();
+		if (res!=0)
+			return res;
+		
+		if (ag->tasks_count())
+		{
+			ag->print_epilog(); //Print stats, so they're at least visible
+			std::cerr << "ERR: ";
+			ag->print_queue();
+			return 4;
+		}
+		
+		for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
+		{
+			s3_path remote_name = iter->second->absolute_name_;
+			const file_desc &mod=desc_map.at(remote_name);
+			std::cout << mod.mtime_
+					  << "\t"<< mod.raw_size_
+					  << "\t" << remote_name << std::endl;
+			files++;
+			total+=iter->second->size_;
+		}
+	} else
 	{
-		ag->print_epilog(); //Print stats, so they're at least visible
-		std::cerr << "ERR: ";
-		ag->print_queue();
-		return 4;
+		for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
+		{
+			s3_path remote_name = iter->second->absolute_name_;
+			file_desc mod=conn.find_mtime_and_size(remote_name);
+			std::cout << mod.mtime_
+					  << "\t"<< mod.raw_size_
+					  << "\t" << remote_name << std::endl;
+			files++;
+			total+=iter->second->size_;
+		}		
 	}
-	
-	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
-	{
-		s3_path remote_name = iter->second->absolute_name_;
-		const file_desc &mod=desc_map.at(remote_name);
-		std::cout << mod.mtime_
-				  << "\t"<< mod.raw_size_
-				  << "\t" << remote_name << std::endl;
-		files++;
-		total+=iter->second->size_;
-	}
-	
 	
 	std::cout<<"Total files: " << files << std::endl;
 	std::cout<<"Total directories: " << dirs << std::endl;
