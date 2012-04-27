@@ -428,14 +428,35 @@ int es3::do_ls(context_ptr context, const stringvec& params,
 	uint64_t total=0;
 	for(auto iter=cur->subdirs_.begin(); iter!=cur->subdirs_.end();++iter)
 	{
-		std::cout << "\t\t\t\tDIR\t" << iter->second->absolute_name_ << std::endl;
+		std::cout << "\t\tDIR\t" << iter->second->absolute_name_ << std::endl;
 		dirs++;
 	}
+	
+//	int res=ag->run();
+//	if (res!=0)
+//		return res;
+	
+//	if (ag->tasks_count())
+//	{
+//		ag->print_epilog(); //Print stats, so they're at least visible
+//		std::cerr << "ERR: ";
+//		ag->print_queue();
+//		return 4;
+//	}
+	
 	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
 	{
-		std::cout << iter->second->mtime_str_
-				  << "\t"<< iter->second->size_
-				  << "\t" << iter->second->absolute_name_ << std::endl;
+		s3_path remote_name = iter->second->absolute_name_;
+		file_desc mod=conn.find_mtime_and_size(remote_name);
+		if (!mod.found_)
+		{
+			std::cerr << "ERR: Document not found at: " << remote_name;
+			return 4;
+		}
+		
+		std::cout << mod.mtime_
+				  << "\t"<< mod.raw_size_
+				  << "\t" << remote_name << std::endl;
 		files++;
 		total+=iter->second->size_;
 	}
