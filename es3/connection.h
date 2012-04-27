@@ -26,6 +26,12 @@ namespace es3 {
 	struct s3_path
 	{
 		std::string zone_, bucket_, path_;
+		
+		inline bool operator<(const s3_path &right) const
+		{
+			return zone_<right.zone_ || bucket_<right.bucket_ ||
+				path_<right.path_;
+		}
 	};
 	inline s3_path derive(const s3_path &left, const std::string &right)
 	{

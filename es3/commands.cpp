@@ -397,6 +397,37 @@ int es3::do_du(context_ptr context, const stringvec& params,
 	return 0;
 }
 
+class get_file_info: public sync_task,
+		public boost::enable_shared_from_this<get_file_info>
+{
+	const s3_path path_;
+	context_ptr context_;
+	std::map<s3_path, file_desc> &desc_map_;
+	std::mutex &mtx_;
+public:
+	get_file_info(const s3_path &path, context_ptr context,
+				  std::map<s3_path, file_desc> &desc, std::mutex &mtx) :
+		path_(path), context_(context), desc_map_(desc), mtx_(mtx)
+	{
+	}
+
+	virtual task_type_e get_class() const { return taskUnbound; }
+
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Get info about " << path_;
+	}
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		s3_connection conn(context_);
+		file_desc mod=conn.find_mtime_and_size(path_);
+		
+		guard_t lock(mtx_);
+		desc_map_[path_] = mod;
+	}
+};
+
 int es3::do_ls(context_ptr context, const stringvec& params,
 		 agenda_ptr ag, bool help)
 {
@@ -432,28 +463,31 @@ int es3::do_ls(context_ptr context, const stringvec& params,
 		dirs++;
 	}
 	
-//	int res=ag->run();
-//	if (res!=0)
-//		return res;
+
+	std::map<s3_path, file_desc> desc_map;
+	std::mutex desc_mtx;	
+	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
+	{
+		sync_task_ptr tsk(new get_file_info(iter->second->absolute_name_,
+											context, desc_map, desc_mtx));
+		ag->schedule(tsk);
+	}
+	int res=ag->run();
+	if (res!=0)
+		return res;
 	
-//	if (ag->tasks_count())
-//	{
-//		ag->print_epilog(); //Print stats, so they're at least visible
-//		std::cerr << "ERR: ";
-//		ag->print_queue();
-//		return 4;
-//	}
+	if (ag->tasks_count())
+	{
+		ag->print_epilog(); //Print stats, so they're at least visible
+		std::cerr << "ERR: ";
+		ag->print_queue();
+		return 4;
+	}
 	
 	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
 	{
 		s3_path remote_name = iter->second->absolute_name_;
-		file_desc mod=conn.find_mtime_and_size(remote_name);
-		if (!mod.found_)
-		{
-			std::cerr << "ERR: Document not found at: " << remote_name;
-			return 4;
-		}
-		
+		const file_desc &mod=desc_map.at(remote_name);
 		std::cout << mod.mtime_
 				  << "\t"<< mod.raw_size_
 				  << "\t" << remote_name << std::endl;
