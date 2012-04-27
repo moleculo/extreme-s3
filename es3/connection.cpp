@@ -310,6 +310,8 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 						FirstChild()->ToText()->Value();
 				std::string size = node->FirstChild("Size")->
 						FirstChild()->ToText()->Value();
+				std::string mtime = node->FirstChild("LastModified")->
+						FirstChild()->ToText()->Value();
 				if (*name.rbegin()!='/')
 				{
 					//Yes, Virginia, there are directory-like-files in S3
@@ -318,6 +320,7 @@ s3_directory_ptr s3_connection::list_files_shallow(const s3_path &path,
 					fl->absolute_name_=derive(target->absolute_name_,
 											  fl->name_);
 					fl->size_ = atoll(size.c_str());
+					fl->mtime_str_ = mtime;
 					fl->parent_ = target;
 					target->files_[fl->name_]=fl;
 				}

@@ -428,12 +428,13 @@ int es3::do_ls(context_ptr context, const stringvec& params,
 	uint64_t total=0;
 	for(auto iter=cur->subdirs_.begin(); iter!=cur->subdirs_.end();++iter)
 	{
-		std::cout << "\tDIR\t" << iter->second->absolute_name_ << std::endl;
+		std::cout << "\t\t\t\tDIR\t" << iter->second->absolute_name_ << std::endl;
 		dirs++;
 	}
 	for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
 	{
-		std::cout << "\t"<< iter->second->size_ 
+		std::cout << iter->second->mtime_str_
+				  << "\t"<< iter->second->size_
 				  << "\t" << iter->second->absolute_name_ << std::endl;
 		files++;
 		total+=iter->second->size_;

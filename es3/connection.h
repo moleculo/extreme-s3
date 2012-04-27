@@ -69,6 +69,7 @@ namespace es3 {
 	{
 		std::string name_;
 		s3_path absolute_name_;
+		std::string mtime_str_;
 
 		uint64_t size_;
 		s3_directory_weak_t parent_;
