@@ -97,9 +97,15 @@ void s3_connection::check_for_errors(curl_ptr_t curl,
 				.FirstChild("Message")
 				.FirstChild()
 				.ToText();
+		
+		//Workaround for timeouts
+		std::string msg_val = message->Value();
+		std::string err_code = s3_err_code->Value();
+		if (msg_val.find("Idle connections will be closed")!=-1)
+			err_level=errWarn; //Lower error level
+		
 		if (s3_err_code && message)
-			err(err_level) << s3_err_code->Value()
-						   << " - " << message->Value();
+			err(err_level) << err_code << " - " << msg_val;
 	} else
 		err(err_level) << "" << def_error;
 }
