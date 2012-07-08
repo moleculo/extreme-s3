@@ -241,8 +241,10 @@ int main(int argc, char **argv)
 	curl_global_init(CURL_GLOBAL_ALL);
 	ON_BLOCK_EXIT(&curl_global_cleanup);
 
-	if (segments>MAX_IN_FLIGHT || segments<=0)
+	if (segments>MAX_IN_FLIGHT)
 		segments=MAX_IN_FLIGHT;
+	else if (segments<=0)
+		segments=40;
 	if (segment_size<MIN_SEGMENT_SIZE)
 		segment_size=MIN_SEGMENT_SIZE;
 	if (cpu_threads<=0)
