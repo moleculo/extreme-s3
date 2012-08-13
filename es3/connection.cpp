@@ -673,4 +673,5 @@ void s3_connection::set_acl(const s3_path &path, const std::string &acl)
 	s3_path p1=path;
 	p1.path_+="?acl";
 	std::string res=read_fully("PUT", p1, "", hm);
+	//Result can be ignored - it's the exit code that is important.
 }

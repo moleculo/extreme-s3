@@ -164,20 +164,21 @@ synchronizer::synchronizer(agenda_ptr agenda, const context_ptr &ctx,
 {
 }
 
-bool synchronizer::check_included(const std::string &name)
+static bool check_included(const std::string &name, 
+						   const stringvec &included, const stringvec &excluded)
 {
-	if (name.find(" ")!=std::string::npos)
+	if (name.find(" ")!=std::string::npos) //Skip filenames with spaces
 		return false;
 
-	if (!excluded_.empty())
+	if (!excluded.empty())
 	{
-		for(auto f = excluded_.begin();f!=excluded_.end();++f)
+		for(auto f = excluded.begin();f!=excluded.end();++f)
 			if (pattern_match(*f)(name))
 				return false;
 	}
-	if (!included_.empty())
+	if (!included.empty())
 	{
-		for(auto f = included_.begin();f!=included_.end();++f)
+		for(auto f = included.begin();f!=included.end();++f)
 			if (pattern_match(*f)(name))
 				return true;
 		return false;
@@ -286,7 +287,8 @@ void synchronizer::delete_possibly_recursive(s3_directory_ptr dir,
 
 	for(auto iter=dir->files_.begin();iter!=dir->files_.end();++iter)
 	{
-		if (!check_included(iter->second->absolute_name_.path_))
+		if (!check_included(iter->second->absolute_name_.path_, 
+							included_, excluded_))
 			continue;		
 		sync_task_ptr task
 				(new remote_file_deleter(ctx_, iter->second->absolute_name_));
@@ -315,7 +317,7 @@ void synchronizer::process_upload(local_dir_ptr locals,
 		unseen_dirs.erase(file->name_);
 		if (file->unsyncable_) //Skip bad files
 			continue;
-		if (!check_included(file->absolute_name_.string()))
+		if (!check_included(file->absolute_name_.string(), included_, excluded_))
 			continue;
 
 		s3_path cur_remote_path = derive(remote_path, file->name_);
@@ -401,7 +403,7 @@ void synchronizer::process_downloads(s3_directory_ptr remotes,
 	{
 		s3_file_ptr file = iter->second;
 		unseen.erase(file->name_);
-		if (!check_included(file->absolute_name_.path_))
+		if (!check_included(file->absolute_name_.path_, included_, excluded_))
 			continue;
 
 		bf::path cur_local_path = local_path / file->name_;
@@ -483,9 +485,13 @@ class publish_file_task : public sync_task,
 	s3_file_ptr fl_;
 	context_ptr ctx_;
 	size_t *result_;
+	const stringvec &included_;
+	const stringvec &excluded_;	
 public:
-	publish_file_task(s3_file_ptr fl, context_ptr ctx, size_t *result) :
-		fl_(fl), ctx_(ctx), result_(result) {}
+	publish_file_task(s3_file_ptr fl, context_ptr ctx, size_t *result,
+					  const stringvec &included, const stringvec &excluded) :
+		fl_(fl), ctx_(ctx), result_(result), 
+		included_(included), excluded_(excluded) {}
 
 	virtual void print_to(std::ostream &str)
 	{
@@ -496,8 +502,13 @@ public:
 
 	virtual void operator()(agenda_ptr agenda)
 	{
+		if (!check_included(fl_->absolute_name_.path_, included_, excluded_))
+			return;
+		
 		s3_connection conn(ctx_);
 		conn.set_acl(fl_->absolute_name_, "public-read");
+		//We don't care about signedness - it's informational data only, anyway
+		boost::detail::atomic_increment((int*)result_);
 	}
 };
 
@@ -507,9 +518,13 @@ class publish_subdir_task : public sync_task,
 	s3_directory_ptr dir_;
 	context_ptr ctx_;
 	size_t *result_;
+	const stringvec &included_;
+	const stringvec &excluded_;
 public:
-	publish_subdir_task(s3_directory_ptr dir, context_ptr ctx, size_t *result) :
-		dir_(dir), ctx_(ctx), result_(result) {}
+	publish_subdir_task(s3_directory_ptr dir, context_ptr ctx, size_t *result,
+						const stringvec &included, const stringvec &excluded) :
+		dir_(dir), ctx_(ctx), result_(result),
+		included_(included), excluded_(excluded) {}
 
 	virtual void print_to(std::ostream &str)
 	{
@@ -524,31 +539,31 @@ public:
 		conn.list_files_shallow(dir_->absolute_name_, dir_, false);
 		for(auto iter=dir_->files_.begin(); iter!=dir_->files_.end();++iter)
 			agenda->schedule(sync_task_ptr(
-								  new publish_file_task(iter->second, ctx_, result_)));
+								  new publish_file_task(iter->second, ctx_, result_, included_, excluded_)));
 		for(auto iter=dir_->subdirs_.begin();
 			iter!=dir_->subdirs_.end();++iter)
 		{
 			agenda->schedule(sync_task_ptr(
-								  new publish_subdir_task(iter->second, ctx_, result_)));
+								  new publish_subdir_task(iter->second, ctx_, result_, included_, excluded_)));
 		}
 	}
 };
 
-size_t es3::schedule_recursive_publication(const s3_path &remote,
-								   context_ptr ctx, agenda_ptr ag)
+void es3::schedule_recursive_publication(const s3_path &remote,
+	context_ptr ctx, agenda_ptr ag, 
+	const stringvec &included, const stringvec &excluded, size_t *num_files)
 {
 	s3_connection conn(ctx);
-	size_t num_files=0;
-	s3_directory_ptr cur_root=conn.list_files_shallow(remote, 
-											   s3_directory_ptr(), true);
+	s3_directory_ptr cur_root=conn.list_files_shallow(remote, s3_directory_ptr(), true);
 	for(auto iter=cur_root->files_.begin(); iter!=cur_root->files_.end();++iter)
-		ag->schedule(sync_task_ptr(new publish_file_task(iter->second, ctx, &num_files)));
+		ag->schedule(sync_task_ptr(new publish_file_task(iter->second, ctx, 
+														 num_files, included, excluded)));
 	
 	for(auto iter=cur_root->subdirs_.begin();
 		iter!=cur_root->subdirs_.end();++iter)
 	{
 		ag->schedule(sync_task_ptr(
-						   new publish_subdir_task(iter->second, ctx, &num_files)));
+						   new publish_subdir_task(iter->second, ctx, 
+												   num_files, included, excluded)));
 	}
-	return num_files;
 }

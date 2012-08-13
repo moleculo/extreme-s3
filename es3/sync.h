@@ -28,8 +28,6 @@ namespace es3 {
 					 const stringvec &included, const stringvec &excluded);
 		bool create_schedule(bool check_mode, bool delete_mode, 
 							 bool non_recursive_delete);
-
-		bool check_included(const std::string &name);
 	private:
 		void process_upload(local_dir_ptr locals, s3_directory_ptr remotes,
 							const s3_path &remote_path, bool check_mode);
@@ -41,8 +39,9 @@ namespace es3 {
 
 	s3_directory_ptr schedule_recursive_walk(const s3_path &remote, 
 											 context_ptr ctx, agenda_ptr ag);
-	size_t schedule_recursive_publication(const s3_path &remote, 
-											 context_ptr ctx, agenda_ptr ag);
+	void schedule_recursive_publication(const s3_path &remote, 
+		context_ptr ctx, agenda_ptr ag, 
+		const stringvec &included, const stringvec &excluded, size_t *num);
 	
 }; //namespace es3
 

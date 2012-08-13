@@ -519,29 +519,63 @@ int es3::do_ls(context_ptr context, const stringvec& params,
 int es3::do_publish(context_ptr context, const stringvec& params,
 		 agenda_ptr ag, bool help)
 {
+	po::options_description opts("publish options", term_width);
+	stringvec included, excluded;
+	opts.add_options()
+		("exclude-path,E", po::value<stringvec>(&excluded),
+			"Exclude the paths matching the pattern from deletion. "
+			"If set, all matching files will be excluded even if they match "
+			"one of the 'include-path' rules.")
+		("include-path,I", po::value<stringvec>(&included),
+			"Include the paths matching the pattern for deletion. "
+			"If set, only the matching paths will be deleted")
+	;
+
 	if (help)
 	{
-		std::cout << "Test syntax: es3 publish <PATH>\n"
-				  << "where <PATH> is:\n"					 
+		std::cout << "rm syntax: es3 publish [OPTIONS] <PATH>\n"
+				  << "where <PATH> is:\n"
 				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
 				  << std::endl << std::endl;
+		std::cout << opts;
 		return 0;
 	}
-	if (params.size()!=1)
+
+	po::positional_options_description pos;
+	pos.add("<ARGS>", -1);
+	stringvec args;
+	opts.add_options()
+			("<ARGS>", po::value<stringvec>(&args)->multitoken()->required())
+	;	
+	po::variables_map vm;
+	try
 	{
-		std::cerr << "ERR: <PATH> must be specified.\n";
+		po::store(po::command_line_parser(params)
+			.options(opts).positional(pos).run(), vm);
+		po::notify(vm);
+	} catch(const boost::program_options::error &err)
+	{
+		std::cerr << "ERR: Failed to parse configuration options. Error: "
+				  << err.what() << "\n"
+				  << "Use --help for help\n";
+		return 2;
+	}
+	if (args.size()<1)
+	{
+		std::cerr << "ERR: At least one <PATH> must be specified.\n";
 		return 2;
 	}
 	
-	std::string tgt = params.at(0);		
 	s3_connection conn(context);
 
-	s3_path path = parse_path(tgt);
-	std::string region=conn.find_region(path.bucket_);
-	path.zone_=region;
-
 	//Do recursive publication
-	size_t num=schedule_recursive_publication(path, context, ag);
+	size_t num=0;
+	for(auto iter=args.begin();iter!=args.end();++iter)
+	{
+		s3_path path = parse_path(*iter);
+		path.zone_=conn.find_region(path.bucket_);
+		schedule_recursive_publication(path, context, ag, included, excluded, &num);
+	}
 	
 	int res=ag->run();
 	if (res!=0)
