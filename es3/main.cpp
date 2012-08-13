@@ -191,16 +191,23 @@ int main(int argc, char **argv)
 
 	try
 	{
+		bool found=false;
 		if (vm.count("config"))
 		{
 			// Parse the file and store the options
 			std::string config_file = vm["config"].as<std::string>();
 			po::store(po::parse_config_file<char>(config_file.c_str(),generic), vm);
-		} else if (getenv("ES3_CONFIG"))
+			found = true;
+		} 
+		
+		if (!found && getenv("ES3_CONFIG"))
 		{
 			po::store(po::parse_config_file<char>(
 						  getenv("ES3_CONFIG"),generic), vm);
-		} else
+			found = true;
+		} 
+		
+		if (!found)
 		{
 			const char *home=getenv("HOME");
 			if (home)
@@ -209,7 +216,16 @@ int main(int argc, char **argv)
 				if (bf::exists(cfg))
 					po::store(po::parse_config_file<char>(
 								  cfg.c_str(),generic), vm);
+				found=true;
 			}
+		} 
+		
+		if (!found)
+		{
+			bf::path cfg=bf::path("/conf") / "es3cfg";
+			if (bf::exists(cfg))
+				po::store(po::parse_config_file<char>(cfg.c_str(),generic), vm);
+			found=true;
 		}
 
 		//Try to parse the environment
