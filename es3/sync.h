@@ -41,6 +41,9 @@ namespace es3 {
 
 	s3_directory_ptr schedule_recursive_walk(const s3_path &remote, 
 											 context_ptr ctx, agenda_ptr ag);
+	size_t schedule_recursive_publication(const s3_path &remote, 
+											 context_ptr ctx, agenda_ptr ag);
+	
 }; //namespace es3
 
 #endif //UPLOADER_H

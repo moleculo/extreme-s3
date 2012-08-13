@@ -18,6 +18,8 @@ namespace es3 {
 
 	int do_rm(context_ptr context, const stringvec& params,
 			 agenda_ptr ag, bool help);
+	int do_publish(context_ptr context, const stringvec& params,
+			 agenda_ptr ag, bool help);	
 	int do_du(context_ptr context, const stringvec& params,
 			 agenda_ptr ag, bool help);
 	int do_ls(context_ptr context, const stringvec& params,

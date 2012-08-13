@@ -26,6 +26,7 @@
   #endif
 #endif
 
+#include <boost/filesystem.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <string>
@@ -33,10 +34,9 @@
 #include <map>
 #include <mutex>
 #include <stdexcept>
-#include <boost/filesystem.hpp>
 
 namespace es3 {
-	namespace bf = boost::filesystem3;
+	namespace bf = boost::filesystem;
 
 	void ES3LIB_LOCAL backtrace_it(void);
 

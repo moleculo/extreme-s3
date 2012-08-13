@@ -134,6 +134,7 @@ int main(int argc, char **argv)
 	subcommands_map["du"] = boost::bind(&do_du, _1, _2, _3, _4);
 	subcommands_map["ls"] = boost::bind(&do_ls, _1, _2, _3, _4);
 	subcommands_map["cat"] = boost::bind(&do_cat, _1, _2, _3, _4);
+	subcommands_map["publish"] = boost::bind(&do_publish, _1, _2, _3, _4);
 	
 	stringvec subcommands;
 	for(auto iter=subcommands_map.begin();iter!=subcommands_map.end();++iter)

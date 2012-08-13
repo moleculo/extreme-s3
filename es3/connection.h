@@ -113,6 +113,8 @@ namespace es3 {
 		file_desc find_mtime_and_size(const s3_path &path);
 
 		std::string find_region(const std::string &bucket);
+		
+		void set_acl(const s3_path &path, const std::string &acl);
 	private:
 		void checked(curl_ptr_t curl, int curl_code);
 		void check_for_errors(curl_ptr_t curl,

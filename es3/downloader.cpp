@@ -178,7 +178,7 @@ void file_downloader::operator()(agenda_ptr agenda)
 	{
 		file_sz=file_size(path_);
 		mtime=last_write_time(path_);
-	} catch(const boost::filesystem3::filesystem_error&) {}
+	} catch(const bf::filesystem_error&) {}
 
 	//Check the modification date of the file locally and on the
 	//remote side

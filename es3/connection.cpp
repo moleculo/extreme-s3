@@ -665,3 +665,12 @@ std::string s3_connection::find_region(const std::string &bucket)
 		return "s3"; //Default location
 	return std::string("s3-")+node->Value();
 }
+
+void s3_connection::set_acl(const s3_path &path, const std::string &acl)
+{
+	header_map_t hm;
+	hm["x-amz-acl"]="public-read";
+	s3_path p1=path;
+	p1.path_+="?acl";
+	std::string res=read_fully("PUT", p1, "", hm);
+}

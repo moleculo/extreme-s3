@@ -515,3 +515,46 @@ int es3::do_ls(context_ptr context, const stringvec& params,
 
 	return 0;
 }
+
+int es3::do_publish(context_ptr context, const stringvec& params,
+		 agenda_ptr ag, bool help)
+{
+	if (help)
+	{
+		std::cout << "Test syntax: es3 publish <PATH>\n"
+				  << "where <PATH> is:\n"					 
+				  << "\t - Amazon S3 storage (in s3://<bucket>/path/ format)"
+				  << std::endl << std::endl;
+		return 0;
+	}
+	if (params.size()!=1)
+	{
+		std::cerr << "ERR: <PATH> must be specified.\n";
+		return 2;
+	}
+	
+	std::string tgt = params.at(0);		
+	s3_connection conn(context);
+
+	s3_path path = parse_path(tgt);
+	std::string region=conn.find_region(path.bucket_);
+	path.zone_=region;
+
+	//Do recursive publication
+	size_t num=schedule_recursive_publication(path, context, ag);
+	
+	int res=ag->run();
+	if (res!=0)
+		return res;
+	
+	if (ag->tasks_count())
+	{
+		ag->print_epilog(); //Print stats, so they're at least visible
+		std::cerr << "ERR: ";
+		ag->print_queue();
+		return 4;
+	}
+	
+	std::cout<<"Total files published: " << num << std::endl;
+	return 0;	
+}

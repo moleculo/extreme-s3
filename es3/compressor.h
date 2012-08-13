@@ -7,7 +7,7 @@
 #include <boost/filesystem.hpp>
 
 namespace es3 {
-	namespace bf = boost::filesystem3;
+	namespace bf = boost::filesystem;
 
 	class conn_context;
 	typedef boost::shared_ptr<conn_context> context_ptr;

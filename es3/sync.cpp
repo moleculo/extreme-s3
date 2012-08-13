@@ -476,3 +476,79 @@ s3_directory_ptr es3::schedule_recursive_walk(const s3_path &remote,
 	}
 	return cur_root;	
 }
+
+class publish_file_task : public sync_task,
+		public boost::enable_shared_from_this<publish_file_task>
+{
+	s3_file_ptr fl_;
+	context_ptr ctx_;
+	size_t *result_;
+public:
+	publish_file_task(s3_file_ptr fl, context_ptr ctx, size_t *result) :
+		fl_(fl), ctx_(ctx), result_(result) {}
+
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Publish file " << fl_;
+	}
+
+	virtual task_type_e get_class() const { return taskUnbound; }
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		s3_connection conn(ctx_);
+		conn.set_acl(fl_->absolute_name_, "public-read");
+	}
+};
+
+class publish_subdir_task : public sync_task,
+		public boost::enable_shared_from_this<publish_subdir_task>
+{
+	s3_directory_ptr dir_;
+	context_ptr ctx_;
+	size_t *result_;
+public:
+	publish_subdir_task(s3_directory_ptr dir, context_ptr ctx, size_t *result) :
+		dir_(dir), ctx_(ctx), result_(result) {}
+
+	virtual void print_to(std::ostream &str)
+	{
+		str << "Publish dir " << dir_;
+	}
+
+	virtual task_type_e get_class() const { return taskUnbound; }
+
+	virtual void operator()(agenda_ptr agenda)
+	{
+		s3_connection conn(ctx_);
+		conn.list_files_shallow(dir_->absolute_name_, dir_, false);
+		for(auto iter=dir_->files_.begin(); iter!=dir_->files_.end();++iter)
+			agenda->schedule(sync_task_ptr(
+								  new publish_file_task(iter->second, ctx_, result_)));
+		for(auto iter=dir_->subdirs_.begin();
+			iter!=dir_->subdirs_.end();++iter)
+		{
+			agenda->schedule(sync_task_ptr(
+								  new publish_subdir_task(iter->second, ctx_, result_)));
+		}
+	}
+};
+
+size_t es3::schedule_recursive_publication(const s3_path &remote,
+								   context_ptr ctx, agenda_ptr ag)
+{
+	s3_connection conn(ctx);
+	size_t num_files=0;
+	s3_directory_ptr cur_root=conn.list_files_shallow(remote, 
+											   s3_directory_ptr(), true);
+	for(auto iter=cur_root->files_.begin(); iter!=cur_root->files_.end();++iter)
+		ag->schedule(sync_task_ptr(new publish_file_task(iter->second, ctx, &num_files)));
+	
+	for(auto iter=cur_root->subdirs_.begin();
+		iter!=cur_root->subdirs_.end();++iter)
+	{
+		ag->schedule(sync_task_ptr(
+						   new publish_subdir_task(iter->second, ctx, &num_files)));
+	}
+	return num_files;
+}
