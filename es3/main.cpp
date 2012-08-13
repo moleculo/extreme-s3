@@ -214,9 +214,11 @@ int main(int argc, char **argv)
 			{
 				bf::path cfg=bf::path(home) / ".es3cfg";
 				if (bf::exists(cfg))
+				{
 					po::store(po::parse_config_file<char>(
 								  cfg.c_str(),generic), vm);
-				found=true;
+					found=true;
+				}
 			}
 		} 
 		
@@ -224,8 +226,10 @@ int main(int argc, char **argv)
 		{
 			bf::path cfg=bf::path("/conf") / "es3cfg";
 			if (bf::exists(cfg))
+			{
 				po::store(po::parse_config_file<char>(cfg.c_str(),generic), vm);
-			found=true;
+				found=true;
+			}
 		}
 
 		//Try to parse the environment
