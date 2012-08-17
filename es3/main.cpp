@@ -222,7 +222,7 @@ int main(int argc, char **argv)
 			}
 		} 
 		
-		if (!found)
+/*		if (!found)
 		{
 			bf::path cfg=bf::path("/conf") / "es3cfg";
 			if (bf::exists(cfg))
@@ -231,7 +231,7 @@ int main(int argc, char **argv)
 				found=true;
 			}
 		}
-
+*/
 		//Try to parse the environment
 		std::map<std::string, std::string> env_name_map;
 		env_name_map["AWS_ACCESS_KEY_ID"]="access-key";
