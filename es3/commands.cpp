@@ -330,6 +330,7 @@ int es3::do_rm(context_ptr context, const stringvec& params,
 struct stat_struct
 {
 	uint64_t size_, file_num_, dir_num_;
+	uint64_t recent_timestamp_;
 };
 
 static void get_size(s3_directory_ptr cur, stat_struct *out)
@@ -338,6 +339,11 @@ static void get_size(s3_directory_ptr cur, stat_struct *out)
 	{
 		out->size_+=iter->second->size_;
 		out->file_num_++;
+		const std::string &mtime=iter->second->mtime_str_;
+		
+		uint64_t tm=boost::lexical_cast<uint64_t>(mtime.c_str());
+		if (tm>out->recent_timestamp_)
+			out->recent_timestamp_=tm;
 	}
 	
 	for(auto iter=cur->subdirs_.begin(); iter!=cur->subdirs_.end();++iter)
@@ -393,6 +399,7 @@ int es3::do_du(context_ptr context, const stringvec& params,
 	std::cout<<"Total files: " << st.file_num_ << std::endl;
 	std::cout<<"Total directories: " << st.dir_num_ << std::endl;
 	std::cout<<"Total size: " << st.size_ << std::endl;
+	std::cout<<"Most recent timestamp: " << st.recent_timestamp_ << std::endl;
 
 	return 0;
 }
