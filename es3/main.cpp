@@ -57,6 +57,9 @@ static std::string get_at(const std::map<std::string, std::string> &map,
 int main(int argc, char **argv)
 {
 	int verbosity = 0;
+	
+	//Be verbose by default if controlling terminal is present
+	int def_verbose = isatty(2);
 
 	//Get terminal size (to pretty-print help text)
 	struct winsize w={0};
@@ -245,7 +248,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	bool no_progress = vm.count("no-progress");
+	bool no_progress = vm.count("no-progress") || !def_verbose;
 	bool no_stats = vm.count("no-stats");
 
 	try
