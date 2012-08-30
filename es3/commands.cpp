@@ -409,10 +409,10 @@ class get_file_info: public sync_task,
 	const s3_path path_;
 	context_ptr context_;
 	std::map<s3_path, file_desc> &desc_map_;
-	std::mutex &mtx_;
+	mutex_t &mtx_;
 public:
 	get_file_info(const s3_path &path, context_ptr context,
-				  std::map<s3_path, file_desc> &desc, std::mutex &mtx) :
+				  std::map<s3_path, file_desc> &desc, mutex_t &mtx) :
 		path_(path), context_(context), desc_map_(desc), mtx_(mtx)
 	{
 	}
@@ -472,7 +472,7 @@ int es3::do_ls(context_ptr context, const stringvec& params,
 	if (cur->files_.size()>10)
 	{
 		std::map<s3_path, file_desc> desc_map;
-		std::mutex desc_mtx;	
+		mutex_t desc_mtx;	
 		for(auto iter=cur->files_.begin(); iter!=cur->files_.end();++iter)
 		{
 			sync_task_ptr tsk(new get_file_info(iter->second->absolute_name_,

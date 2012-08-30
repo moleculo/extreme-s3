@@ -29,7 +29,7 @@ struct es3::upload_content
 	std::string upload_id_;
 	s3_path remote_;
 
-	std::mutex lock_;
+	mutex_t lock_;
 	size_t num_parts_;
 	size_t num_completed_;
 	std::vector<std::string> etags_;

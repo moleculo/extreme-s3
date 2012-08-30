@@ -44,7 +44,7 @@ namespace es3 {
 	class file_compressor : public sync_task,
 			public boost::enable_shared_from_this<file_compressor>
 	{
-		std::mutex m_;
+		mutex_t m_;
 
 		context_ptr context_;
 		const bf::path path_;

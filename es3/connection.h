@@ -65,7 +65,7 @@ namespace es3 {
 		std::string name_;
 		s3_path absolute_name_;
 
-		std::mutex m_;
+		mutex_t m_;
 		file_map_t files_;
 		subdir_map_t subdirs_;
 		s3_directory_weak_t parent_;

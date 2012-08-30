@@ -33,7 +33,7 @@ namespace es3 {
 		conn_context(const conn_context &);
 
 		void release_curl(CURL*);
-		std::mutex m_;
+		boost::mutex m_;
 		std::map<std::string, std::vector<CURL*> > curls_;
 		std::map<CURL*, char*> error_bufs_;
 		std::map<CURL*, std::string> borrowed_curls_;

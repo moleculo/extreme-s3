@@ -35,6 +35,7 @@ namespace es3
 			delete seg;
 
 			u_guard_t guard(parent_->m_);
+			guard.lock();
 			assert(parent_->segments_in_flight_>0);
 			parent_->segments_in_flight_--;
 			parent_->condition_.notify_one();
@@ -53,6 +54,7 @@ namespace es3
 			while(true)
 			{
 				u_guard_t lock(agenda_->m_);
+				lock.lock();
 				if (agenda_->tasks_.empty())
 				{
 					if (agenda_->num_working_==0)
@@ -124,6 +126,7 @@ namespace es3
 		void cleanup(sync_task_ptr cur_task, bool fail)
 		{
 			u_guard_t lock(agenda_->m_);
+			lock.lock();
 			agenda_->num_working_--;
 			assert(agenda_->classes_[cur_task->get_class()]>0);
 			agenda_->classes_[cur_task->get_class()]--;
@@ -211,6 +214,7 @@ std::vector<segment_ptr> agenda::get_segments(size_t num)
 void agenda::schedule(sync_task_ptr task)
 {
 	u_guard_t lock(m_);
+	lock.lock();
 //	agenda_ptr ptr = shared_from_this();
 
 //	auto iter=std::lower_bound(tasks_.begin(), tasks_.end(), task);

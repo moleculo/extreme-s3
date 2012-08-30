@@ -21,7 +21,7 @@ void local_file_deleter::operator ()(agenda_ptr agenda_)
 
 struct download_content
 {
-	std::mutex m_;
+	mutex_t m_;
 	context_ptr ctx_;
 
 	time_t mtime_;

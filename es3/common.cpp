@@ -12,7 +12,7 @@ using boost::spirit::karma::lit;
 using namespace es3;
 
 static int global_verbosity_level = 0;
-std::mutex logger_lock_;
+mutex_t logger_lock_;
 
 es3::logger::logger(int lvl)
 	: verbosity_(lvl), stream_(new std::ostringstream())
