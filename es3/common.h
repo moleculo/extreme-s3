@@ -37,6 +37,10 @@
 #include <boost/thread/condition_variable.hpp>
 #include <stdexcept>
 
+#ifdef __MACH__
+#define lseek64 lseek
+#endif
+
 namespace es3 {
 	namespace bf = boost::filesystem;
 

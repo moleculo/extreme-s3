@@ -128,7 +128,7 @@ int main(int argc, char **argv)
 		("subcommand_params", po::value<stringvec>()->multitoken());
 
 	std::map< std::string,
-			std::function<int(context_ptr, const stringvec&, agenda_ptr, bool)> >
+			boost::function<int(context_ptr, const stringvec&, agenda_ptr, bool)> >
 			subcommands_map;
 	subcommands_map["sync"] = boost::bind(&do_rsync, _1, _2, _3, _4);
 	subcommands_map["test"] = boost::bind(&do_test, _1, _2, _3, _4);

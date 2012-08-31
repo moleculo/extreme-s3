@@ -237,7 +237,16 @@ void file_downloader::operator()(agenda_ptr agenda)
 		handle_t fl(open(dc->local_file_.c_str(), O_RDWR|O_CREAT, 0600)
 					| libc_die2("Failed to create file "
 							   +dc->local_file_.string()));
+#ifndef __MACH__		
 		fallocate64(fl.get(), 0, 0, dc->remote_size_);
+#else
+		fstore_t store = {F_ALLOCATECONTIG, F_PEOFPOSMODE, 0, (off_t)dc->remote_size_};
+		// OK, perhaps we are too fragmented, allocate non-continuous
+	    store.fst_flags = F_ALLOCATEALL;
+	    int ret = fcntl(fl.get(), F_PREALLOCATE, &store);
+	    if (ret!=-1)
+			ftruncate(fl.get(), (off_t)dc->remote_size_);
+#endif
 	}
 
 	for(size_t f=0;f<seg_num;++f)

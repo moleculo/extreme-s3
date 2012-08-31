@@ -3,11 +3,13 @@
 #include "errors.h"
 #include <stdio.h>
 
+#ifndef __MACH__
 #define BOOST_KARMA_NUMERICS_LOOP_UNROLL 6
 #include <boost/spirit/include/karma.hpp>
 using namespace boost::spirit;
 using boost::spirit::karma::int_;
 using boost::spirit::karma::lit;
+#endif
 
 using namespace es3;
 
@@ -40,19 +42,29 @@ bool es3::logger::is_log_on(int lvl)
 std::string es3::int_to_string(int64_t in)
 {
 	char buffer[64];
+#ifdef __MACH__
+	sprintf(buffer, "%lld", in);
+	return buffer;
+#else	
 	char *ptr = buffer;
 	karma::generate(ptr, int_, in);
 	*ptr = '\0';
 	return std::string(buffer, ptr-buffer);
+#endif
 }
 
 void es3::append_int_to_string(int64_t in, std::string &out)
 {
 	char buffer[64];
+#ifdef __MACH__
+	sprintf(buffer, "%lld", in);
+	out.append(buffer);
+#else
 	char *ptr = buffer;
 	karma::generate(ptr, int_, in);
 	*ptr = '\0';
 	out.append(buffer, ptr);
+#endif
 }
 
 std::string es3::trim(const std::string &str)

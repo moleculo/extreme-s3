@@ -105,7 +105,7 @@ void s3_connection::check_for_errors(curl_ptr_t curl,
 			err_level=errWarn; //Lower error level
 		
 		if (s3_err_code && message)
-			err(err_level) << err_code << " - " << msg_val;
+			err(err_level) << "" << err_code << " - " << msg_val;
 	} else
 		err(err_level) << "" << def_error;
 }
