@@ -81,7 +81,7 @@ namespace es3 {
 		s3_directory_weak_t parent_;
 	};
 
-	typedef std::function<void(size_t)> progress_callback_t;
+	typedef boost::function<void(size_t)> progress_callback_t;
 
 	class s3_connection
 	{

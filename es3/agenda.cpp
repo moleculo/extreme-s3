@@ -1,27 +1,51 @@
 #include "agenda.h"
 #include "errors.h"
 #include <unistd.h>
-#include <thread>
+//#include <thread>
 #include <sstream>
 #include <unistd.h>
 #include <boost/bind.hpp>
 #include <time.h>
 #include <iostream>
 
+
+#ifdef __MACH__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 using namespace es3;
+
+int current_utc_time(struct timespec *ts) 
+{
+#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
+	clock_serv_t cclock;
+	mach_timespec_t mts;
+	host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+	clock_get_time(cclock, &mts);
+	mach_port_deallocate(mach_task_self(), cclock);
+	ts->tv_sec = mts.tv_sec;
+	ts->tv_nsec = mts.tv_nsec;
+	return 0;
+#else
+	return clock_gettime(CLOCK_REALTIME, ts);
+#endif
+}
+
+
 
 agenda::agenda(size_t num_unbound, size_t num_cpu_bound, size_t num_io_bound,
 			   bool quiet, bool final_quiet,
 			   size_t segment_size, size_t max_segments_in_flight) :
-	class_limits_ {{taskUnbound, num_unbound},
-				   {taskCPUBound, num_cpu_bound},
-				   {taskIOBound, num_io_bound}},
 	quiet_(quiet), final_quiet_(final_quiet), segment_size_(segment_size),
 	max_segments_in_flight_(max_segments_in_flight),
 	num_working_(), num_submitted_(), num_done_(), num_failed_(),
 	segments_in_flight_()
 {
-	clock_gettime(CLOCK_MONOTONIC, &start_time_) | libc_die2("Can't get time");
+	class_limits_[taskUnbound]=num_unbound;
+	class_limits_[taskCPUBound]=num_cpu_bound;
+	class_limits_[taskIOBound]=num_io_bound;
+	current_utc_time(&start_time_) | libc_die2("Can't get time");
 }
 
 namespace es3
@@ -231,22 +255,24 @@ void agenda::schedule(sync_task_ptr task)
 	num_submitted_++;
 }
 
+typedef boost::shared_ptr<boost::thread> thread_ptr_t;
+
 size_t agenda::run()
 {
-	std::vector<std::thread> threads;
+	std::vector<thread_ptr_t> threads;
 	size_t thread_num=0;
 	for(auto iter=class_limits_.begin();iter!=class_limits_.end();++iter)
 		thread_num+=iter->second;
 
 	for(int f=0;f<thread_num;++f)
-		threads.push_back(std::thread(task_executor(shared_from_this())));
+		threads.push_back(thread_ptr_t(new boost::thread(task_executor(shared_from_this()))));
 
 	if (!quiet_)
 	{
-		threads.push_back(std::thread(boost::bind(&agenda::draw_progress,
-												  this)));
+		threads.push_back(thread_ptr_t(new boost::thread(boost::bind(&agenda::draw_progress,
+												  this))));
 		for(int f=0;f<threads.size();++f)
-			threads.at(f).join();
+			threads.at(f)->join();
 
 		//Draw progress the last time
 		draw_progress_widget();
@@ -254,7 +280,7 @@ size_t agenda::run()
 	} else
 	{
 		for(int f=0;f<threads.size();++f)
-			threads.at(f).join();
+			threads.at(f)->join();
 	}
 
 	return num_failed_;
@@ -351,7 +377,7 @@ void agenda::draw_progress_widget()
 uint64_t agenda::get_elapsed_millis() const
 {
 	struct timespec cur;
-	clock_gettime(CLOCK_MONOTONIC, &cur) | libc_die2("Can't get time");
+	current_utc_time(&cur) | libc_die2("Can't get time");
 	uint64_t start_tm = uint64_t(start_time_.tv_sec)*1000 +
 			start_time_.tv_nsec/1000000;
 
